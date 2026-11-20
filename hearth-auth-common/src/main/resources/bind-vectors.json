@@ -1,0 +1,84 @@
+[
+  {
+    "id": "plain-get",
+    "method": "GET",
+    "path": "/internal/nas/files/list",
+    "query": "path=docs",
+    "checksum": null,
+    "body": null
+  },
+  {
+    "id": "unsorted-query",
+    "method": "GET",
+    "path": "/internal/nas/files/list",
+    "query": "b=2&a=1",
+    "checksum": null,
+    "body": null
+  },
+  {
+    "id": "sorted-query-equiv",
+    "method": "GET",
+    "path": "/internal/nas/files/list",
+    "query": "a=1&b=2",
+    "checksum": null,
+    "body": null,
+    "equivTo": "unsorted-query"
+  },
+  {
+    "id": "encoded-space",
+    "method": "PUT",
+    "path": "/internal/nas/files/my%20docs/report.pdf",
+    "query": "",
+    "checksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "body": null
+  },
+  {
+    "id": "encoded-slash",
+    "method": "PUT",
+    "path": "/internal/nas/files/a%2Fb",
+    "query": "",
+    "checksum": null,
+    "body": null,
+    "note": "%2F must stay encoded, different from /a/b"
+  },
+  {
+    "id": "json-body-ordered",
+    "method": "POST",
+    "path": "/internal/nas/uploads",
+    "query": "",
+    "checksum": null,
+    "body": {
+      "path": "/docs/x.pdf",
+      "sizeBytes": 1024
+    }
+  },
+  {
+    "id": "json-body-unordered",
+    "method": "POST",
+    "path": "/internal/nas/uploads",
+    "query": "",
+    "checksum": null,
+    "body": {
+      "sizeBytes": 1024,
+      "path": "/docs/x.pdf"
+    },
+    "equivTo": "json-body-ordered"
+  },
+  {
+    "id": "null-query",
+    "method": "GET",
+    "path": "/internal/nas/files/list",
+    "query": null,
+    "checksum": null,
+    "body": null
+  },
+  {
+    "id": "checksum-lowercase",
+    "method": "PUT",
+    "path": "/internal/nas/files/x.txt",
+    "query": "",
+    "checksum": "ABCDEF",
+    "body": null,
+    "note": "checksum must be lowercased before hashing"
+  }
+]
