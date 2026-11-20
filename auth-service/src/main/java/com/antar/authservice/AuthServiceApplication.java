@@ -1,4 +1,4 @@
-package com.tamojit.authservice;
+package com.antar.authservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

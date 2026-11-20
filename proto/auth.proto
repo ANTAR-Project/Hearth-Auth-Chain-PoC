@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package com.tamojit.grpc.auth;
+package com.antar.grpc.auth;
 
 option java_multiple_files = true;
-option java_package = "com.tamojit.grpc.auth";
+option java_package = "com.antar.grpc.auth";
 
 service AuthGrpcService {
   rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
@@ -14,5 +14,8 @@ message ValidateTokenRequest {
 }
 
 message ValidateTokenResponse {
-  string username = 1;
+  bool valid = 1;
+  string user_id = 2;
+  string username = 3;
+  string role = 4;
 }

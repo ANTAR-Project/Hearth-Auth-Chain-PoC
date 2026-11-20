@@ -1040,7 +1040,7 @@ public class AuthKeys {
 package com.tamojit.authservice.security;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.tamojit.authservice.config.AuthKeys;
+import config.com.antar.authservice.AuthKeys;
 import com.tamojit.authservice.model.User;
 import com.tamojit.hearth.common.Hearth;
 import org.springframework.stereotype.Component;
@@ -1096,9 +1096,7 @@ public class AccessTokenIssuer {
 package com.tamojit.authservice.service;
 
 import com.tamojit.authservice.event.DenylistPublisher;
-import com.tamojit.authservice.model.*;
-import com.tamojit.authservice.repository.*;
-import com.tamojit.authservice.security.AccessTokenIssuer;
+import security.com.antar.authservice.AccessTokenIssuer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -1115,7 +1113,9 @@ public class SessionService {
 
     public SessionService(SessionRepository sessions, AccessTokenIssuer issuer,
                           DenylistPublisher denylist) {
-        this.sessions = sessions; this.issuer = issuer; this.denylist = denylist;
+        this.sessions = sessions;
+        this.issuer = issuer;
+        this.denylist = denylist;
     }
 
     @Transactional
@@ -1123,8 +1123,11 @@ public class SessionService {
         UUID sid = UUID.randomUUID();
         String rawRefresh = sid + "." + randomHex(32);
         Session s = new Session();
-        s.setId(sid); s.setUser(u); s.setDeviceId(deviceId);
-        s.setAmr(new String[]{"pwd"}); s.setRefreshHash(sha256b64(rawRefresh));
+        s.setId(sid);
+        s.setUser(u);
+        s.setDeviceId(deviceId);
+        s.setAmr(new String[]{"pwd"});
+        s.setRefreshHash(sha256b64(rawRefresh));
         s.setExpiresAt(Instant.now().plus(Duration.ofDays(7)));
         sessions.save(s);
         return new TokenPair(issuer.issue(u, sid, List.of("pwd")), rawRefresh, 900);
@@ -1135,8 +1138,11 @@ public class SessionService {
         int dot = presented.indexOf('.');
         if (dot < 0) throw new InvalidRefreshException();
         UUID sid;
-        try { sid = UUID.fromString(presented.substring(0, dot)); }
-        catch (IllegalArgumentException e) { throw new InvalidRefreshException(); }
+        try {
+            sid = UUID.fromString(presented.substring(0, dot));
+        } catch (IllegalArgumentException e) {
+            throw new InvalidRefreshException();
+        }
 
         Session s = sessions.findByIdForUpdate(sid).orElseThrow(InvalidRefreshException::new);
         if (s.getRevokedAt() != null || s.getExpiresAt().isBefore(Instant.now()))
@@ -1163,7 +1169,8 @@ public class SessionService {
     }
 
     public void revoke(Session s, String reason) {
-        s.setRevokedAt(Instant.now()); s.setRevokedReason(reason);
+        s.setRevokedAt(Instant.now());
+        s.setRevokedReason(reason);
         sessions.save(s);
         denylist.deny(s.getId().toString(), reason);
     }
@@ -1171,19 +1178,26 @@ public class SessionService {
     private static String sha256b64(String input) {
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256")
-                    .digest(input.getBytes(StandardCharsets.UTF_8));
+                .digest(input.getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
-        } catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static String randomHex(int bytes) {
-        byte[] b = new byte[bytes]; new SecureRandom().nextBytes(b);
+        byte[] b = new byte[bytes];
+        new SecureRandom().nextBytes(b);
         return HexFormat.of().formatHex(b);
     }
 
-    public record TokenPair(String accessToken, String refreshToken, long expiresIn) {}
+    public record TokenPair(String accessToken, String refreshToken, long expiresIn) {
+    }
+
     public static class InvalidRefreshException extends RuntimeException {
-        public InvalidRefreshException() { super("invalid refresh token"); }
+        public InvalidRefreshException() {
+            super("invalid refresh token");
+        }
     }
 }
 ```
@@ -1221,7 +1235,6 @@ public class DenylistPublisher {
 ```java
 package com.tamojit.authservice.controller;
 
-import com.tamojit.authservice.dto.*;
 import com.tamojit.authservice.model.User;
 import com.tamojit.authservice.repository.UserRepository;
 import com.tamojit.authservice.service.SessionService;
@@ -1229,6 +1242,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -1240,14 +1254,16 @@ public class AuthController {
     private final PasswordEncoder encoder;
 
     public AuthController(UserRepository users, SessionService sessions, PasswordEncoder encoder) {
-        this.users = users; this.sessions = sessions; this.encoder = encoder;
+        this.users = users;
+        this.sessions = sessions;
+        this.encoder = encoder;
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest req) {
         User u = users.findByUsername(req.username())
-                .filter(found -> encoder.matches(req.password(), found.getPasswordHash()))
-                .orElseThrow(() -> new AuthException("INVALID_CREDENTIALS", 401));
+            .filter(found -> encoder.matches(req.password(), found.getPasswordHash()))
+            .orElseThrow(() -> new AuthException("INVALID_CREDENTIALS", 401));
 
         if (u.getStatus() != User.UserStatus.ACTIVE)
             throw new AuthException("ACCOUNT_SUSPENDED", 403);
@@ -1278,8 +1294,15 @@ public class AuthController {
 
     public static class AuthException extends RuntimeException {
         private final int status;
-        public AuthException(String msg, int status) { super(msg); this.status = status; }
-        public int getStatus() { return status; }
+
+        public AuthException(String msg, int status) {
+            super(msg);
+            this.status = status;
+        }
+
+        public int getStatus() {
+            return status;
+        }
     }
 }
 ```
@@ -1289,7 +1312,7 @@ public class AuthController {
 ```java
 package com.tamojit.authservice.controller;
 
-import com.tamojit.authservice.config.AuthKeys;
+import config.com.antar.authservice.AuthKeys;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
@@ -1314,14 +1337,14 @@ public class JwksController {
 ```java
 package com.tamojit.authservice.controller;
 
-import com.tamojit.authservice.dto.*;
 import com.tamojit.authservice.model.ServiceClient;
 import com.tamojit.authservice.repository.ServiceClientRepository;
-import com.tamojit.authservice.security.AccessTokenIssuer;
+import security.com.antar.authservice.AccessTokenIssuer;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.*;
 
 @RestController
@@ -1332,8 +1355,10 @@ public class ServiceTokenController {
     private final AccessTokenIssuer issuer;
 
     public ServiceTokenController(ServiceClientRepository clients, PasswordEncoder encoder,
-                                   AccessTokenIssuer issuer) {
-        this.clients = clients; this.encoder = encoder; this.issuer = issuer;
+                                  AccessTokenIssuer issuer) {
+        this.clients = clients;
+        this.encoder = encoder;
+        this.issuer = issuer;
     }
 
     @PostMapping("/token")
@@ -1342,7 +1367,7 @@ public class ServiceTokenController {
             return ResponseEntity.badRequest().body(Map.of("error", "unsupported_grant_type"));
 
         ServiceClient c = clients.findByClientIdAndAudience(req.clientId(), req.audience())
-                .orElseThrow(() -> new AuthController.AuthException("INVALID_CLIENT", 401));
+            .orElseThrow(() -> new AuthController.AuthException("INVALID_CLIENT", 401));
         if (!c.isEnabled()) throw new AuthController.AuthException("CLIENT_DISABLED", 401);
         if (!encoder.matches(req.clientSecret(), c.getSecretHash()))
             throw new AuthController.AuthException("INVALID_CLIENT", 401);
@@ -1353,7 +1378,7 @@ public class ServiceTokenController {
             for (String s : req.scope().split(" ")) {
                 if (!s.isBlank() && !allowedSet.contains(s))
                     return ResponseEntity.badRequest()
-                            .body(Map.of("error", "invalid_scope", "detail", s));
+                        .body(Map.of("error", "invalid_scope", "detail", s));
             }
         }
 
@@ -1369,7 +1394,7 @@ public class ServiceTokenController {
 ```java
 package com.tamojit.authservice.grpc;
 
-import com.tamojit.authservice.config.AuthKeys;
+import config.com.antar.authservice.AuthKeys;
 import com.tamojit.grpc.auth.*;
 import com.tamojit.hearth.common.*;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;

@@ -1,4 +1,4 @@
-package com.tamojit.authservice;
+package com.antar.authservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package com.tamojit.grpc.streaming;
+package com.antar.grpc.streaming;
 
 option java_multiple_files = true;
-option java_package = "com.tamojit.grpc.streaming";
+option java_package = "com.antar.grpc.streaming";
 
 service StreamingGrpcService {
   rpc GetRewrittenPlaylist (PlaylistRequest) returns (PlaylistResponse);

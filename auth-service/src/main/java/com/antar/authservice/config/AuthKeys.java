@@ -1,4 +1,4 @@
-package com.tamojit.authservice.config;
+package com.antar.authservice.config;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
