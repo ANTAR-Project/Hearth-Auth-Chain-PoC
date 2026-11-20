@@ -1,0 +1,109 @@
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+          routes:
+            - id: nas-file-list
+              uri: http://nas-orchestrator:8081
+              predicates: [Path=/api/v1/nas/files/list, Method=GET]
+              metadata:
+                hearth:
+                  intent: nas.workspace.list
+                  action: LIST
+                  domain: NAS
+                  class: query
+                  audience: nas-orchestrator
+                  resourceType: WORKSPACE
+                  resourceId: "{username}"
+                  namespace: OWNED
+                  upstreamPath: /internal/nas/files/list
+
+            - id: nas-file-create
+              uri: http://nas-orchestrator:8081
+              predicates: [Path=/api/v1/nas/files/{*path}, Method=PUT]
+              metadata:
+                hearth:
+                  intent: nas.workspace.create
+                  action: CREATE
+                  domain: NAS
+                  class: command
+                  audience: nas-orchestrator
+                  resourceType: WORKSPACE
+                  resourceId: "{username}"
+                  namespace: OWNED
+                  upstreamPath: /internal/nas/files{path}
+                  params:
+                    path: "{path}"
+                    sizeBytes: "header:Content-Length"
+                    sha256: "header:X-Checksum-SHA256"
+
+            - id: nas-upload-init
+              uri: http://nas-orchestrator:8081
+              predicates: [Path=/api/v1/nas/uploads, Method=POST]
+              filters:
+                - name: ModifyResponseBody
+                  args:
+                    inClass: java.util.Map
+                    outClass: java.util.Map
+                    rewriteFunction: "#{@uploadTicketRewrite}"
+              metadata:
+                hearth:
+                  intent: nas.upload.file
+                  action: CREATE
+                  domain: NAS
+                  class: ticket
+                  audience: nas-orchestrator
+                  resourceType: WORKSPACE
+                  resourceId: "{username}"
+                  namespace: OWNED
+                  upstreamPath: /internal/nas/uploads
+
+            - id: element-control
+              uri: http://element-registry:9200
+              predicates: [Path=/api/v1/elements/{elementId}/state, Method=PUT]
+              metadata:
+                hearth:
+                  intent: element.device.control
+                  action: CONTROL
+                  domain: ELEMENT     # ← triggers ELEMENT domain branch in PolicyFilter
+                  class: command
+                  audience: element-registry
+                  resourceType: ELEMENT
+                  resourceId: "{elementId}"
+                  namespace: OWNED
+                  upstreamPath: /internal/elements/{elementId}/state
+
+            - id: auth-login
+              uri: http://auth-service:9000
+              predicates: [Path=/api/v1/auth/login, Method=POST]
+              metadata:
+                hearth: { public: true }
+
+  codec:
+    max-in-memory-size: 64KB
+
+server:
+  port: 8443
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      base-path: /internal
+      exposure:
+        include: jwks,health
+
+hearth:
+  auth:
+    jwks-uri: http://auth-service:9000/.well-known/jwks.json
+  gateway:
+    keys-dir: ${GATEWAY_KEYS_DIR:/run/secrets/gateway-keys}
+    current-kid: ${GATEWAY_CURRENT_KID:gw-2026-11}
+  policy:
+    endpoints:
+      NAS: policy-registry:9100
+      ELEMENT: policy-registry:9100   # same instance; splitting later = config change only
