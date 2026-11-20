@@ -1004,8 +1004,8 @@ public class AuthKeys {
                 try {
                     String kid = p.getFileName().toString().replace(".pem", "");
                     String pem = Files.readString(p, StandardCharsets.UTF_8);
-                    ECKey k = ECKey.parseFromPEMEncodedObjects(pem);
-                    keyMap.put(kid, k.toECKey());
+                    ECKey k = JWK.parseFromPEMEncodedObjects(pem).toECKey();
+                    keyMap.put(kid, k);
                     log.info("Loaded auth key: {}", kid);
                 } catch (Exception e) {
                     throw new IllegalStateException("Failed to load auth key " + p, e);
