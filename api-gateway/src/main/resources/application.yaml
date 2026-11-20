@@ -101,8 +101,8 @@ hearth:
   auth:
     jwks-uri: http://auth-service:9000/.well-known/jwks.json
   gateway:
-    keys-dir: ${GATEWAY_KEYS_DIR:/run/secrets/gateway-keys}
-    current-kid: ${GATEWAY_CURRENT_KID:gw-2026-11}
+    keys-dir: ${GATEWAY_KEYS_DIR}
+    current-kid: ${GATEWAY_CURRENT_KID}
   policy:
     endpoints:
       NAS: policy-registry:9100

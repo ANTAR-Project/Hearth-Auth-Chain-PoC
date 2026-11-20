@@ -8,7 +8,8 @@ import java.time.Duration;
 
 @Configuration
 public class GatewayAuthConfig {
-    @Value("${hearth.auth.jwks-uri}") private String authJwksUri;
+    @Value("${hearth.auth.jwks-uri}")
+    private String authJwksUri;
 
     @Bean
     public JwtVerifier accessTokenVerifier() throws Exception {

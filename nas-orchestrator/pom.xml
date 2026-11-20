@@ -84,8 +84,9 @@
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
-			<groupId>com.tamojit</groupId>
+			<groupId>com.antar</groupId>
 			<artifactId>hearth-auth-common</artifactId>
 			<version>1.0.0</version>
 		</dependency>

@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package com.antar.grpc.policy;
+
+option java_multiple_files = true;
+option java_package = "com.antar.grpc.policy";
+
+service Policy {
+  rpc Decide(DecideRequest) returns (DecideResponse);
+}
+
+message DecideRequest {
+  string domain = 1;
+  Subject subject = 2;
+  string action = 3;
+  Resource resource = 4;
+  string namespace = 5;
+  string rule_name = 6;
+}
+
+message Subject {
+  string user_id = 1;
+  string username = 2;
+  string role = 3;
+}
+
+message Resource {
+  string type = 1;
+  string id = 2;
+  string qualifier = 3;
+  map<string, string> attrs = 4;
+}
+
+message DecideResponse {
+  string effect = 1;
+  string scope = 2;
+  string reason_code = 3;
+}

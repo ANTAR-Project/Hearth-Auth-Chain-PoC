@@ -1509,7 +1509,125 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 
 ## Phase 3: policy-registry
 
-### 3.1 `proto/policy.proto`
+### 3.1 `policy-registry/pom.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+           https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.1</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.antar</groupId>
+  <artifactId>policy-registry</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <name>policy-registry</name>
+
+  <properties>
+    <java.version>21</java.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.grpc</groupId>
+        <artifactId>spring-grpc-dependencies</artifactId>
+        <version>1.0.3</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- JPA + PostgreSQL (owns antar_policy DB) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- Spring gRPC (Policy.Decide listener on :9100) -->
+    <dependency>
+      <groupId>org.springframework.grpc</groupId>
+      <artifactId>spring-grpc-spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>javax.annotation</groupId>
+      <artifactId>javax.annotation-api</artifactId>
+      <version>1.3.2</version>
+    </dependency>
+
+    <!-- Kafka (listens to policy.changed topic to trigger snapshot refresh) -->
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka</artifactId>
+    </dependency>
+
+    <!-- Actuator (healthchecks) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <extensions>
+      <extension>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>1.7.1</version>
+      </extension>
+    </extensions>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <!-- Compiles proto/policy.proto into Java gRPC stubs -->
+      <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <version>0.6.1</version>
+        <configuration>
+          <protoSourceRoot>${project.basedir}/../proto</protoSourceRoot>
+          <protocArtifact>com.google.protobuf:protoc:4.29.3:exe:${os.detected.classifier}</protocArtifact>
+          <pluginId>grpc-java</pluginId>
+          <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.71.0:exe:${os.detected.classifier}</pluginArtifact>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>compile</goal>
+              <goal>compile-custom</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+```
+
+### 3.2 `proto/policy.proto`
 
 ```protobuf
 syntax = "proto3";
@@ -2024,7 +2142,15 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
                 }).onErrorResume(Exception.class, e -> Problems.write(ex, 503, "AUTH_UNAVAILABLE"));
     }
 
-    record RejectRequest(int status, String code) {}
+    static class RejectRequest extends RuntimeException {
+        private final int status;
+        private final String code;
+        public RejectRequest(int status, String code) {
+            super(code); this.status = status; this.code = code;
+        }
+        public int status() { return status; }
+        public String code() { return code; }
+    }
     @Override public int getOrder() { return -250; }
 }
 ```
@@ -2097,7 +2223,8 @@ public class GatewayAuthConfig {
 package com.tamojit.apigateway.jwks;
 
 import com.tamojit.apigateway.config.GatewayKeys;
-import org.springframework.boot.actuate.endpoint.annotation.*;
+import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
+import org.springframework.boot.actuate.endpoint.web.annotation.WebEndpoint;
 import org.springframework.stereotype.Component;
 import java.util.Map;
 

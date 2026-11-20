@@ -3,6 +3,9 @@ FROM maven:3.9.9-eclipse-temurin-21 AS builder
 
 WORKDIR /app
 
+COPY hearth-auth-common /hearth-auth-common
+RUN mvn -q -f /hearth-auth-common/pom.xml install -DskipTests
+
 COPY nas-orchestrator/pom.xml .
 
 RUN mvn dependency:go-offline -B # caching the dependencies on install
