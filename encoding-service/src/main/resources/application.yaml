@@ -38,15 +38,15 @@ spring:
           address: static://nas-orchestrator:4092
 
 server:
-  port: 8083
+  port: 9005
 
 nas:
   orchestrator:
-    base-url: http://nas-orchestrator:8081
+    base-url: http://nas-orchestrator:9002
 
 auth:
   service:
-    base-url: http://${HEARTH_HOST}:8085
+    base-url: http://auth-service:9000
     url: ${AUTH_SERVICE_URL}
   client:
     id: ${AUTH_CLIENT_ID}

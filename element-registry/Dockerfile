@@ -22,6 +22,6 @@ WORKDIR /app
 
 COPY --from=builder ./app/target/element-registry-0.0.1-SNAPSHOT.jar ./app.jar
 
-EXPOSE 9200
+EXPOSE 9003
 
 ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-jar", "app.jar"]

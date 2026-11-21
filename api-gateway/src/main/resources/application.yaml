@@ -7,7 +7,7 @@ spring:
             connect-timeout: 2000
           routes:
             - id: nas-file-list
-              uri: http://nas-orchestrator:8081
+              uri: http://nas-orchestrator:9002
               predicates: [Path=/api/v1/nas/files/list, Method=GET]
               metadata:
                 hearth:
@@ -22,7 +22,7 @@ spring:
                   upstreamPath: /internal/nas/files/list
 
             - id: nas-file-create
-              uri: http://nas-orchestrator:8081
+              uri: http://nas-orchestrator:9002
               predicates: [Path=/api/v1/nas/files/{*path}, Method=PUT]
               metadata:
                 hearth:
@@ -41,7 +41,7 @@ spring:
                     sha256: "header:X-Checksum-SHA256"
 
             - id: nas-upload-init
-              uri: http://nas-orchestrator:8081
+              uri: http://nas-orchestrator:9002
               predicates: [Path=/api/v1/nas/uploads, Method=POST]
               filters:
                 - name: ModifyResponseBody
@@ -62,7 +62,7 @@ spring:
                   upstreamPath: /internal/nas/uploads
 
             - id: element-control
-              uri: http://element-registry:9200
+              uri: http://element-registry:9003
               predicates: [Path=/api/v1/elements/{elementId}/state, Method=PUT]
               metadata:
                 hearth:
@@ -105,5 +105,5 @@ hearth:
     current-kid: ${GATEWAY_CURRENT_KID}
   policy:
     endpoints:
-      NAS: policy-registry:9100
-      ELEMENT: policy-registry:9100   # same instance; splitting later = config change only
+      NAS: policy-registry:9001
+      ELEMENT: policy-registry:9001

@@ -21,6 +21,6 @@ RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder ./app/target/encoding-service-0.0.1-SNAPSHOT.jar ./app.jar
 
-EXPOSE 8083
+EXPOSE 9005
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
