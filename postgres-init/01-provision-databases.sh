@@ -2,9 +2,9 @@
 set -euo pipefail
 
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
-AUTH_DB_PASSWORD="${AUTH_DB_PASSWORD:-changeme_auth}"
-POLICY_DB_PASSWORD="${POLICY_DB_PASSWORD:-changeme_policy}"
-STREAMING_DB_PASSWORD="${STREAMING_DB_PASSWORD:-changeme_streaming}"
+AUTH_DB_PASSWORD="${AUTH_DB_PASSWORD:-auth-service-admin}"
+POLICY_DB_PASSWORD="${POLICY_DB_PASSWORD:-policy-registry-admin}"
+STREAMING_DB_PASSWORD="${STREAMING_DB_PASSWORD:-streaming-service-admin}"
 
 HEARTH_OWNER_USERNAME="${HEARTH_OWNER_USERNAME:-owner}"
 HEARTH_OWNER_PASSWORD="${HEARTH_OWNER_PASSWORD:-owner123}"
@@ -13,6 +13,7 @@ VIDEO_SVC_SECRET="${VIDEO_SVC_SECRET:-video-service-admin}"
 ENCODING_SVC_SECRET="${ENCODING_SVC_SECRET:-encoding-service-admin}"
 STREAMING_SVC_SECRET="${STREAMING_SVC_SECRET:-streaming-service-admin}"
 GATEWAY_SVC_SECRET="${GATEWAY_SVC_SECRET:-gateway-service-admin}"
+NOTIFICATION_SVC_SECRET="${NOTIFICATION_SVC_SECRET:-notification-service-admin}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
@@ -63,11 +64,12 @@ hash_secret() {
   fi
 }
 
-OWNER_HASH="${HEARTH_OWNER_PASSWORD_HASH:-$(hash_secret "$HEARTH_OWNER_PASSWORD")}"
-VIDEO_HASH="${VIDEO_SVC_SECRET_HASH:-$(hash_secret "$VIDEO_SVC_SECRET")}"
-ENCODING_HASH="${ENCODING_SVC_SECRET_HASH:-$(hash_secret "$ENCODING_SVC_SECRET")}"
-STREAMING_HASH="${STREAMING_SVC_SECRET_HASH:-$(hash_secret "$STREAMING_SVC_SECRET")}"
-GATEWAY_HASH="${GATEWAY_SVC_SECRET_HASH:-$(hash_secret "$GATEWAY_SVC_SECRET")}"
+OWNER_HASH="$(hash_secret "$HEARTH_OWNER_PASSWORD")"
+VIDEO_HASH="$(hash_secret "$VIDEO_SVC_SECRET")"
+ENCODING_HASH="$(hash_secret "$ENCODING_SVC_SECRET")"
+STREAMING_HASH="$(hash_secret "$STREAMING_SVC_SECRET")"
+GATEWAY_HASH="$(hash_secret "$GATEWAY_SVC_SECRET")"
+NOTIFICATION_HASH="$(hash_secret "$NOTIFICATION_SVC_SECRET")"
 
 # Seed auth DB
 psql -v ON_ERROR_STOP=1 \
@@ -79,10 +81,11 @@ psql -v ON_ERROR_STOP=1 \
      --variable encoding_svc_hash="${ENCODING_HASH}" \
      --variable streaming_svc_hash="${STREAMING_HASH}" \
      --variable gateway_svc_hash="${GATEWAY_HASH}" \
-     -f /docker-entrypoint-initdb.d/02-seed-auth.sql
+     --variable notification_svc_hash="${NOTIFICATION_HASH}" \
+     -f /docker-entrypoint-initdb.d/sql/02-seed-auth.sql
 
 # Seed policy DB
 psql -v ON_ERROR_STOP=1 \
      --username antar_policy \
      --dbname antar_policy \
-     -f /docker-entrypoint-initdb.d/03-seed-policy.sql
+     -f /docker-entrypoint-initdb.d/sql/03-seed-policy.sql
