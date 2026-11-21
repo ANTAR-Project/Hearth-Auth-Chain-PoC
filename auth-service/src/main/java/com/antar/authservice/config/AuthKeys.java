@@ -88,4 +88,11 @@ public class AuthKeys {
     public ECKey current() {
         return currentKey;
     }
+
+    public ECKey getKey(String kid) {
+        if (kid != null && keyMap.containsKey(kid)) {
+            return keyMap.get(kid);
+        }
+        return currentKey;
+    }
 }

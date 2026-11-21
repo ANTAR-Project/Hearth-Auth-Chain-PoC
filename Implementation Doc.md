@@ -557,6 +557,19 @@ public enum ScopeEnforcer {
 #!/bin/bash
 set -euo pipefail
 
+POSTGRES_USER="${POSTGRES_USER:-postgres}"
+AUTH_DB_PASSWORD="${AUTH_DB_PASSWORD:-changeme_auth}"
+POLICY_DB_PASSWORD="${POLICY_DB_PASSWORD:-changeme_policy}"
+STREAMING_DB_PASSWORD="${STREAMING_DB_PASSWORD:-changeme_streaming}"
+
+HEARTH_OWNER_USERNAME="${HEARTH_OWNER_USERNAME:-owner}"
+HEARTH_OWNER_PASSWORD="${HEARTH_OWNER_PASSWORD:-owner123}"
+
+VIDEO_SVC_SECRET="${VIDEO_SVC_SECRET:-video-service-admin}"
+ENCODING_SVC_SECRET="${ENCODING_SVC_SECRET:-encoding-service-admin}"
+STREAMING_SVC_SECRET="${STREAMING_SVC_SECRET:-streaming-service-admin}"
+GATEWAY_SVC_SECRET="${GATEWAY_SVC_SECRET:-gateway-service-admin}"
+
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
   -- auth-service DB
@@ -591,16 +604,37 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
 EOSQL
 
+# Helper to hash a secret using pgcrypto if not already a hash
+hash_secret() {
+  local val="$1"
+  if [[ "$val" =~ ^\{.*\} ]]; then
+    echo "$val"
+  elif [[ "$val" =~ ^\$2[aby]\$ ]]; then
+    echo "{bcrypt}$val"
+  else
+    local h
+    h=$(psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname antar_auth -tA \
+         -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; SELECT crypt('$val', gen_salt('bf', 10));")
+    echo "{bcrypt}$h"
+  fi
+}
+
+OWNER_HASH="${HEARTH_OWNER_PASSWORD_HASH:-$(hash_secret "$HEARTH_OWNER_PASSWORD")}"
+VIDEO_HASH="${VIDEO_SVC_SECRET_HASH:-$(hash_secret "$VIDEO_SVC_SECRET")}"
+ENCODING_HASH="${ENCODING_SVC_SECRET_HASH:-$(hash_secret "$ENCODING_SVC_SECRET")}"
+STREAMING_HASH="${STREAMING_SVC_SECRET_HASH:-$(hash_secret "$STREAMING_SVC_SECRET")}"
+GATEWAY_HASH="${GATEWAY_SVC_SECRET_HASH:-$(hash_secret "$GATEWAY_SVC_SECRET")}"
+
 # Seed auth DB
 psql -v ON_ERROR_STOP=1 \
      --username antar_auth \
      --dbname antar_auth \
      --variable owner_username="${HEARTH_OWNER_USERNAME}" \
-     --variable owner_password_hash="${HEARTH_OWNER_PASSWORD_HASH}" \
-     --variable video_svc_hash="${VIDEO_SVC_SECRET_HASH}" \
-     --variable encoding_svc_hash="${ENCODING_SVC_SECRET_HASH}" \
-     --variable streaming_svc_hash="${STREAMING_SVC_SECRET_HASH}" \
-     --variable gateway_svc_hash="${GATEWAY_SVC_SECRET_HASH}" \
+     --variable owner_password_hash="${OWNER_HASH}" \
+     --variable video_svc_hash="${VIDEO_HASH}" \
+     --variable encoding_svc_hash="${ENCODING_HASH}" \
+     --variable streaming_svc_hash="${STREAMING_HASH}" \
+     --variable gateway_svc_hash="${GATEWAY_HASH}" \
      -f /docker-entrypoint-initdb.d/02-seed-auth.sql
 
 # Seed policy DB
@@ -1233,17 +1267,25 @@ public class DenylistPublisher {
 #### `controller/AuthController.java`
 
 ```java
-package com.tamojit.authservice.controller;
+package com.antar.authservice.controller;
 
-import com.tamojit.authservice.model.User;
-import com.tamojit.authservice.repository.UserRepository;
-import com.tamojit.authservice.service.SessionService;
+import com.antar.authservice.config.AuthKeys;
+import com.antar.authservice.dto.*;
+import com.antar.authservice.model.User;
+import com.antar.authservice.repository.UserRepository;
+import com.antar.authservice.service.SessionService;
+import com.nimbusds.jose.crypto.ECDSAVerifier;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -1252,11 +1294,18 @@ public class AuthController {
     private final UserRepository users;
     private final SessionService sessions;
     private final PasswordEncoder encoder;
+    private final AuthKeys authKeys;
 
-    public AuthController(UserRepository users, SessionService sessions, PasswordEncoder encoder) {
+    public AuthController(
+        UserRepository users,
+        SessionService sessions,
+        PasswordEncoder encoder,
+        AuthKeys authKeys
+    ) {
         this.users = users;
         this.sessions = sessions;
         this.encoder = encoder;
+        this.authKeys = authKeys;
     }
 
     @PostMapping("/login")
@@ -1290,6 +1339,81 @@ public class AuthController {
     public ResponseEntity<Void> logout(@RequestHeader("X-Session-Id") String sid) {
         sessions.revoke(UUID.fromString(sid), "LOGOUT");
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Endpoint where an OWNER can create a RESIDENT or GUEST user.
+     * Enforces caller has role == OWNER via Authorization Bearer token.
+     */
+    @PostMapping("/users")
+    public ResponseEntity<UserResponse> createUser(
+        @RequestHeader(value = "Authorization", required = false) String authHeader,
+        @Valid @RequestBody CreateUserRequest req
+    ) {
+        assertOwner(authHeader);
+
+        if (req.role() == User.UserRole.OWNER) {
+            throw new AuthException("CANNOT_CREATE_OWNER_ROLE", 400);
+        }
+
+        if (users.findByUsername(req.username()).isPresent()) {
+            throw new AuthException("USERNAME_ALREADY_EXISTS", 409);
+        }
+
+        User u = new User();
+        u.setUsername(req.username());
+        u.setPasswordHash(encoder.encode(req.password()));
+        u.setRole(req.role());
+        u.setStatus(User.UserStatus.ACTIVE);
+        u.setMustChangePassword(req.mustChangePassword() != null ? req.mustChangePassword() : false);
+        u.setExpiresAt(req.expiresAt());
+
+        User saved = users.save(u);
+        return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.from(saved));
+    }
+
+    /**
+     * Endpoint for an OWNER to list all registered users.
+     */
+    @GetMapping("/users")
+    public ResponseEntity<List<UserResponse>> listUsers(
+        @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
+        assertOwner(authHeader);
+        List<UserResponse> list = users.findAll().stream()
+            .map(UserResponse::from)
+            .toList();
+        return ResponseEntity.ok(list);
+    }
+
+    private void assertOwner(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new AuthException("UNAUTHORIZED", 401);
+        }
+        String token = authHeader.substring(7).trim();
+        try {
+            SignedJWT jwt = SignedJWT.parse(token);
+            String kid = jwt.getHeader().getKeyID();
+            var key = authKeys.getKey(kid);
+            if (key == null || !jwt.verify(new ECDSAVerifier(key.toECPublicKey()))) {
+                throw new AuthException("INVALID_TOKEN", 401);
+            }
+
+            JWTClaimsSet claims = jwt.getJWTClaimsSet();
+            Date exp = claims.getExpirationTime();
+            if (exp != null && exp.before(new Date())) {
+                throw new AuthException("TOKEN_EXPIRED", 401);
+            }
+
+            String role = claims.getStringClaim("role");
+            if (!"OWNER".equals(role)) {
+                throw new AuthException("FORBIDDEN_OWNER_REQUIRED", 403);
+            }
+        } catch (AuthException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AuthException("INVALID_TOKEN: " + e.getMessage(), 401);
+        }
     }
 
     public static class AuthException extends RuntimeException {

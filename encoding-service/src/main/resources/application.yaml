@@ -47,6 +47,12 @@ nas:
 auth:
   service:
     base-url: http://${HEARTH_HOST}:8085
+    url: ${AUTH_SERVICE_URL}
+  client:
+    id: ${AUTH_CLIENT_ID}
+    secret: ${AUTH_CLIENT_SECRET}
+    audience: ${AUTH_CLIENT_AUDIENCE}
+    scope: ${AUTH_CLIENT_SCOPE}
 
 service:
   auth:

@@ -1,6 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
+POSTGRES_USER="${POSTGRES_USER:-postgres}"
+AUTH_DB_PASSWORD="${AUTH_DB_PASSWORD:-changeme_auth}"
+POLICY_DB_PASSWORD="${POLICY_DB_PASSWORD:-changeme_policy}"
+STREAMING_DB_PASSWORD="${STREAMING_DB_PASSWORD:-changeme_streaming}"
+
+HEARTH_OWNER_USERNAME="${HEARTH_OWNER_USERNAME:-owner}"
+HEARTH_OWNER_PASSWORD="${HEARTH_OWNER_PASSWORD:-owner123}"
+
+VIDEO_SVC_SECRET="${VIDEO_SVC_SECRET:-video-service-admin}"
+ENCODING_SVC_SECRET="${ENCODING_SVC_SECRET:-encoding-service-admin}"
+STREAMING_SVC_SECRET="${STREAMING_SVC_SECRET:-streaming-service-admin}"
+GATEWAY_SVC_SECRET="${GATEWAY_SVC_SECRET:-gateway-service-admin}"
+
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
   -- auth-service DB
@@ -35,16 +48,37 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
 EOSQL
 
+# Helper to hash a secret using pgcrypto if not already a hash
+hash_secret() {
+  local val="$1"
+  if [[ "$val" =~ ^\{.*\} ]]; then
+    echo "$val"
+  elif [[ "$val" =~ ^\$2[aby]\$ ]]; then
+    echo "{bcrypt}$val"
+  else
+    local h
+    h=$(psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname antar_auth -tA \
+         -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; SELECT crypt('$val', gen_salt('bf', 10));")
+    echo "{bcrypt}$h"
+  fi
+}
+
+OWNER_HASH="${HEARTH_OWNER_PASSWORD_HASH:-$(hash_secret "$HEARTH_OWNER_PASSWORD")}"
+VIDEO_HASH="${VIDEO_SVC_SECRET_HASH:-$(hash_secret "$VIDEO_SVC_SECRET")}"
+ENCODING_HASH="${ENCODING_SVC_SECRET_HASH:-$(hash_secret "$ENCODING_SVC_SECRET")}"
+STREAMING_HASH="${STREAMING_SVC_SECRET_HASH:-$(hash_secret "$STREAMING_SVC_SECRET")}"
+GATEWAY_HASH="${GATEWAY_SVC_SECRET_HASH:-$(hash_secret "$GATEWAY_SVC_SECRET")}"
+
 # Seed auth DB
 psql -v ON_ERROR_STOP=1 \
      --username antar_auth \
      --dbname antar_auth \
      --variable owner_username="${HEARTH_OWNER_USERNAME}" \
-     --variable owner_password_hash="${HEARTH_OWNER_PASSWORD_HASH}" \
-     --variable video_svc_hash="${VIDEO_SVC_SECRET_HASH}" \
-     --variable encoding_svc_hash="${ENCODING_SVC_SECRET_HASH}" \
-     --variable streaming_svc_hash="${STREAMING_SVC_SECRET_HASH}" \
-     --variable gateway_svc_hash="${GATEWAY_SVC_SECRET_HASH}" \
+     --variable owner_password_hash="${OWNER_HASH}" \
+     --variable video_svc_hash="${VIDEO_HASH}" \
+     --variable encoding_svc_hash="${ENCODING_HASH}" \
+     --variable streaming_svc_hash="${STREAMING_HASH}" \
+     --variable gateway_svc_hash="${GATEWAY_HASH}" \
      -f /docker-entrypoint-initdb.d/02-seed-auth.sql
 
 # Seed policy DB
