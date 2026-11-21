@@ -2,7 +2,6 @@ package com.antar.videoservice.config;
 
 import com.antar.grpc.filetransfer.FileTransferGrpcServiceGrpc;
 import com.antar.videoservice.grpc.GrpcAuthClientInterceptor;
-import com.antar.videoservice.security.ServiceAuthTokenProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.grpc.client.GrpcChannelFactory;
@@ -14,7 +13,7 @@ public class GrpcClientConfig {
     @Bean
     public FileTransferGrpcServiceGrpc.FileTransferGrpcServiceStub fileTransferGrpcAsyncStub(
         GrpcChannelFactory channels,
-        ServiceAuthTokenProvider tokenProvider
+        ServiceTokenRefresher tokenProvider
     ) {
         GrpcAuthClientInterceptor interceptor = new GrpcAuthClientInterceptor(tokenProvider);
         return FileTransferGrpcServiceGrpc.newStub(channels.createChannel("nas-orchestrator"))
@@ -24,7 +23,7 @@ public class GrpcClientConfig {
     @Bean
     public FileTransferGrpcServiceGrpc.FileTransferGrpcServiceBlockingStub fileTransferGrpcBlockingStub(
         GrpcChannelFactory channels,
-        ServiceAuthTokenProvider tokenProvider
+        ServiceTokenRefresher tokenProvider
     ) {
         GrpcAuthClientInterceptor interceptor = new GrpcAuthClientInterceptor(tokenProvider);
         return FileTransferGrpcServiceGrpc.newBlockingStub(channels.createChannel("nas-orchestrator"))

@@ -1,6 +1,6 @@
 package com.antar.videoservice.grpc;
 
-import com.antar.videoservice.security.ServiceAuthTokenProvider;
+import com.antar.videoservice.config.ServiceTokenRefresher;
 import io.grpc.*;
 
 // Not @GlobalClientInterceptor — only applied to the nas-orchestrator stub in GrpcClientConfig.
@@ -9,9 +9,9 @@ import io.grpc.*;
 public class GrpcAuthClientInterceptor implements ClientInterceptor {
     private static final Metadata.Key<String> AUTH_TOKEN_METADATA_KEY = Metadata.Key.of("x-auth-token", Metadata.ASCII_STRING_MARSHALLER);
 
-    private final ServiceAuthTokenProvider tokenProvider;
+    private final ServiceTokenRefresher tokenProvider;
 
-    public GrpcAuthClientInterceptor(ServiceAuthTokenProvider tokenProvider) {
+    public GrpcAuthClientInterceptor(ServiceTokenRefresher tokenProvider) {
         this.tokenProvider = tokenProvider;
     }
 
@@ -24,7 +24,7 @@ public class GrpcAuthClientInterceptor implements ClientInterceptor {
         return new ForwardingClientCall.SimpleForwardingClientCall<>(next.newCall(method, callOptions)) {
             @Override
             public void start(Listener<RespT> responseListener, Metadata headers) {
-                headers.put(AUTH_TOKEN_METADATA_KEY, tokenProvider.getToken());
+                headers.put(AUTH_TOKEN_METADATA_KEY, tokenProvider.get());
                 super.start(responseListener, headers);
             }
         };
