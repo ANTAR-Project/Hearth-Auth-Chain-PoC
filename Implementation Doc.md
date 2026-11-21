@@ -511,40 +511,26 @@ public enum ScopeEnforcer {
 }
 ```
 
-### 0.3 Test vectors: `src/test/resources/bind-vectors.json`
+### 0.3 Test vectors: `src/main/resources/bind-vectors.json`
 
 ```json
 [
-  { "id": "plain-get",
-    "method": "GET", "path": "/internal/nas/files/list", "query": "path=docs",
-    "checksum": null, "body": null },
-  { "id": "unsorted-query",
-    "method": "GET", "path": "/internal/nas/files/list", "query": "b=2&a=1",
-    "checksum": null, "body": null },
-  { "id": "sorted-query-equiv",
-    "method": "GET", "path": "/internal/nas/files/list", "query": "a=1&b=2",
-    "checksum": null, "body": null, "equivTo": "unsorted-query" },
-  { "id": "encoded-space",
-    "method": "PUT", "path": "/internal/nas/files/my%20docs/report.pdf", "query": "",
-    "checksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", "body": null },
-  { "id": "encoded-slash",
-    "method": "PUT", "path": "/internal/nas/files/a%2Fb", "query": "",
-    "checksum": null, "body": null,
-    "note": "%2F must stay encoded, different from /a/b" },
-  { "id": "json-body-ordered",
-    "method": "POST", "path": "/internal/nas/uploads", "query": "",
-    "checksum": null, "body": {"path": "/docs/x.pdf", "sizeBytes": 1024} },
-  { "id": "json-body-unordered",
-    "method": "POST", "path": "/internal/nas/uploads", "query": "",
-    "checksum": null, "body": {"sizeBytes": 1024, "path": "/docs/x.pdf"},
-    "equivTo": "json-body-ordered" },
-  { "id": "null-query",
-    "method": "GET", "path": "/internal/nas/files/list", "query": null,
-    "checksum": null, "body": null },
-  { "id": "checksum-lowercase",
-    "method": "PUT", "path": "/internal/nas/files/x.txt", "query": "",
-    "checksum": "ABCDEF", "body": null,
-    "note": "checksum must be lowercased before hashing" }
+  { "id": "nas-files-plain-get", "method": "GET", "path": "/api/v1/nas-orchestrator/files/list", "query": "path=docs", "checksum": null, "body": null },
+  { "id": "nas-files-unsorted-query", "method": "GET", "path": "/api/v1/nas-orchestrator/files/list", "query": "b=2&a=1", "checksum": null, "body": null },
+  { "id": "nas-files-sorted-query-equiv", "method": "GET", "path": "/api/v1/nas-orchestrator/files/list", "query": "a=1&b=2", "checksum": null, "body": null, "equivTo": "nas-files-unsorted-query" },
+  { "id": "nas-files-encoded-space", "method": "GET", "path": "/api/v1/nas-orchestrator/files/download", "query": "path=my%20docs%2Freport.pdf", "checksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", "body": null },
+  { "id": "nas-files-encoded-slash", "method": "GET", "path": "/api/v1/nas-orchestrator/files/download", "query": "path=a%2Fb", "checksum": null, "body": null, "note": "%2F must stay encoded, different from /a/b" },
+  { "id": "nas-files-checksum-lowercase", "method": "POST", "path": "/api/v1/nas-orchestrator/files/mkdir", "query": "path=newfolder", "checksum": "ABCDEF1234567890", "body": null, "note": "checksum must be lowercased before hashing" },
+  { "id": "nas-shared-plain-get", "method": "GET", "path": "/api/v1/nas-orchestrator/shared/list", "query": "path=public", "checksum": null, "body": null },
+  { "id": "nas-shared-clear-delete", "method": "DELETE", "path": "/api/v1/nas-orchestrator/shared/clear", "query": null, "checksum": null, "body": null },
+  { "id": "nas-workspace-create-json-ordered", "method": "POST", "path": "/api/v1/nas-orchestrator/workspace/create", "query": "", "checksum": null, "body": {"description": "User personal workspace", "name": "alice"} },
+  { "id": "nas-workspace-create-json-unordered", "method": "POST", "path": "/api/v1/nas-orchestrator/workspace/create", "query": "", "checksum": null, "body": {"name": "alice", "description": "User personal workspace"}, "equivTo": "nas-workspace-create-json-ordered" },
+  { "id": "streaming-playlist-query", "method": "GET", "path": "/api/v1/stream", "query": "path=movies%2Favatar.mp4", "checksum": null, "body": null },
+  { "id": "streaming-playlists-null-query", "method": "GET", "path": "/api/v1/stream/playlists", "query": null, "checksum": null, "body": null },
+  { "id": "element-state-put-json-ordered", "method": "PUT", "path": "/api/v1/elements/living-room-light/state", "query": "", "checksum": null, "body": {"brightness": 80, "power": "ON"} },
+  { "id": "element-state-put-json-unordered", "method": "PUT", "path": "/api/v1/elements/living-room-light/state", "query": "", "checksum": null, "body": {"power": "ON", "brightness": 80}, "equivTo": "element-state-put-json-ordered" },
+  { "id": "element-read-get", "method": "GET", "path": "/api/v1/elements/living-room-light", "query": null, "checksum": null, "body": null },
+  { "id": "video-upload-post", "method": "POST", "path": "/api/v1/videos/upload", "query": "path=uploads%2Fraw", "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "body": null }
 ]
 ```
 
