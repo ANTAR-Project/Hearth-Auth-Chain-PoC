@@ -15,6 +15,6 @@ public class GatewayAuthConfig {
     public JwtVerifier accessTokenVerifier() throws Exception {
         DiskBackedJwkSource src = new DiskBackedJwkSource(new URL(authJwksUri), "hearth-auth");
         return new JwtVerifier(src,
-                new JwtVerifier.Spec("at+jwt", "hearth-auth", "hearth-gateway", Duration.ofSeconds(5)));
+                new JwtVerifier.Spec(Hearth.TYP_ACCESS, Hearth.ISS_AUTH, "hearth-gateway", Duration.ofSeconds(5)));
     }
 }

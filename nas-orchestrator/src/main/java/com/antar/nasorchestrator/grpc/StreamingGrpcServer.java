@@ -1,8 +1,8 @@
 package com.antar.nasorchestrator.grpc;
 
-import com.tamojit.grpc.streaming.PlaylistRequest;
-import com.tamojit.grpc.streaming.PlaylistResponse;
-import com.tamojit.grpc.streaming.StreamingGrpcServiceGrpc;
+import com.antar.grpc.streaming.PlaylistRequest;
+import com.antar.grpc.streaming.PlaylistResponse;
+import com.antar.grpc.streaming.StreamingGrpcServiceGrpc;
 import com.antar.nasorchestrator.service.StreamingService;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;

@@ -1,6 +1,6 @@
 package com.antar.encodingservice.config;
 
-import com.tamojit.grpc.filetransfer.FileTransferGrpcServiceGrpc;
+import com.antar.grpc.filetransfer.FileTransferGrpcServiceGrpc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.grpc.client.GrpcChannelFactory;

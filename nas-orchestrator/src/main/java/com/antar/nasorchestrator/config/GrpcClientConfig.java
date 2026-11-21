@@ -1,6 +1,6 @@
 package com.antar.nasorchestrator.config;
 
-import com.tamojit.grpc.auth.AuthGrpcServiceGrpc;
+import com.antar.grpc.auth.AuthGrpcServiceGrpc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.grpc.client.GrpcChannelFactory;

@@ -1,16 +1,13 @@
 package com.antar.videoservice.controller;
 
+import com.antar.videoservice.hearth.HearthPrincipal;
 import com.antar.videoservice.service.VideoService;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -21,33 +18,25 @@ import java.io.IOException;
 @RequiredArgsConstructor
 @Validated
 public class VideoController {
-    private static final String NO_TRAVERSAL_REGEX = "^(?!.*\\.\\.).*$";
-    private static final String NO_TRAVERSAL_MSG = "Path cannot contain '..' segments";
-    private static final String NO_BACKSLASH_REGEX = "^[^\\\\]*$";
-    private static final String NO_BACKSLASH_MSG = "Path cannot contain backslashes";
-    private static final String NO_LEADING_SLASH_REGEX = "^(?!/).*$";
-    private static final String NO_LEADING_SLASH_MSG = "Path must be relative — do not start with '/'";
 
     private final VideoService videoService;
 
-    // upload multipart file (video)
     @PostMapping("/upload")
     public ResponseEntity<String> uploadVideo(
         HttpServletRequest request,
-        @RequestParam(value = "path", defaultValue = "")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path,
+        @RequestParam(value = "path", defaultValue = "") String path,
         @RequestParam("file") MultipartFile file
     ) throws IOException {
-        log.info("Video upload request of size = {} MB", file.getSize() / (1024 * 1024));
+        HearthPrincipal p = (HearthPrincipal) request.getAttribute(HearthPrincipal.ATTR);
+        if (p == null) return ResponseEntity.status(401).body("AUTH_INVALID");
+
+        log.info("Video upload request from {} of size = {} MB", p.username(), file.getSize() / (1024 * 1024));
 
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body("File is empty");
         }
 
-        String videoKey = videoService.uploadVideo(path, file, request);
+        String videoKey = videoService.uploadVideo(path, file, p);
 
         return ResponseEntity.ok("video uploaded successfully! Key = " + videoKey + " : Encoding started automatically via Kafka");
     }

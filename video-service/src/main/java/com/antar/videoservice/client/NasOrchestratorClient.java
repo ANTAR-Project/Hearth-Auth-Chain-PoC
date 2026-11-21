@@ -1,9 +1,9 @@
 package com.antar.videoservice.client;
 
 import com.google.protobuf.ByteString;
-import com.tamojit.grpc.filetransfer.FileChunk;
-import com.tamojit.grpc.filetransfer.FileTransferGrpcServiceGrpc;
-import com.tamojit.grpc.filetransfer.UploadResponse;
+import com.antar.grpc.filetransfer.FileChunk;
+import com.antar.grpc.filetransfer.FileTransferGrpcServiceGrpc;
+import com.antar.grpc.filetransfer.UploadResponse;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import io.grpc.stub.StreamObserver;

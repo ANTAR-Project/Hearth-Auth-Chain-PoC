@@ -1,8 +1,8 @@
 package com.antar.streamingservice.service;
 
-import com.tamojit.grpc.streaming.PlaylistRequest;
-import com.tamojit.grpc.streaming.PlaylistResponse;
-import com.tamojit.grpc.streaming.StreamingGrpcServiceGrpc;
+import com.antar.grpc.streaming.PlaylistRequest;
+import com.antar.grpc.streaming.PlaylistResponse;
+import com.antar.grpc.streaming.StreamingGrpcServiceGrpc;
 import com.antar.streamingservice.grpc.PerCallTokenAttacher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

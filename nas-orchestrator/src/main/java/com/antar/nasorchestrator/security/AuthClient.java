@@ -1,8 +1,8 @@
 package com.antar.nasorchestrator.security;
 
-import com.tamojit.grpc.auth.AuthGrpcServiceGrpc;
-import com.tamojit.grpc.auth.ValidateTokenRequest;
-import com.tamojit.grpc.auth.ValidateTokenResponse;
+import com.antar.grpc.auth.AuthGrpcServiceGrpc;
+import com.antar.grpc.auth.ValidateTokenRequest;
+import com.antar.grpc.auth.ValidateTokenResponse;
 import com.antar.nasorchestrator.dto.ValidationOutcome;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;

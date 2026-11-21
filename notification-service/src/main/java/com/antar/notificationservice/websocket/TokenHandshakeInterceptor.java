@@ -1,7 +1,7 @@
 package com.antar.notificationservice.websocket;
 
-import com.antar.notificationservice.dto.ValidationOutcome;
-import com.antar.notificationservice.security.AuthClient;
+import com.antar.hearth.common.JwtVerifier;
+import com.nimbusds.jwt.JWTClaimsSet;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -16,15 +16,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * Validates the caller's JWT BEFORE upgrading the connection to a WebSocket.
+ * Validates the caller's access JWT BEFORE upgrading the connection to a WebSocket.
  * Browsers cannot attach custom headers to a WebSocket handshake request,
- * so the token travels as a query parameter instead
+ * so the access token travels as ?token= query parameter instead.
+ * We verify it directly with JwtVerifier (no gRPC round-trip needed).
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class TokenHandshakeInterceptor implements HandshakeInterceptor {
-    private final AuthClient authClient;
+    private final JwtVerifier accessTokenVerifier;
 
     @Override
     public boolean beforeHandshake(
@@ -40,19 +41,29 @@ public class TokenHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        ValidationOutcome outcome = authClient.validate(token);
-        if (!outcome.reachable()) {
-            log.warn("auth-service unreachable during WebSocket handshake");
+        try {
+            JWTClaimsSet claims = accessTokenVerifier.verify(token);
+            String username = claims.getStringClaim("username");
+            if (username == null || username.isBlank()) {
+                log.warn("Access token has no username claim during WebSocket handshake");
+                response.setStatusCode(HttpStatus.UNAUTHORIZED);
+                return false;
+            }
+            attributes.put("username", username);
+            return true;
+        } catch (JwtVerifier.Rejected e) {
+            log.warn("WebSocket handshake rejected — invalid access token");
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            return false;
+        } catch (JwtVerifier.Unavailable e) {
+            log.warn("JWKS unavailable during WebSocket handshake");
             response.setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
             return false;
-        }
-        if (!outcome.valid()) {
+        } catch (Exception e) {
+            log.error("Unexpected error during WebSocket handshake token verification", e);
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             return false;
         }
-
-        attributes.put("username", outcome.username());
-        return true;
     }
 
     @Override
@@ -62,14 +73,12 @@ public class TokenHandshakeInterceptor implements HandshakeInterceptor {
         WebSocketHandler wsHandler,
         Exception exception
     ) {
-        // default - no op.
+        // no-op
     }
 
     private String extractToken(ServerHttpRequest request) {
         String query = request.getURI().getQuery();
-        if (query == null) {
-            return null;
-        }
+        if (query == null) return null;
 
         for (String param : query.split("&")) {
             String[] kv = param.split("=", 2);
@@ -77,7 +86,6 @@ public class TokenHandshakeInterceptor implements HandshakeInterceptor {
                 return URLDecoder.decode(kv[1], StandardCharsets.UTF_8);
             }
         }
-
         return null;
     }
 }

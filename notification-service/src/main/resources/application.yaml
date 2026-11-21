@@ -22,14 +22,12 @@ spring:
               default:
                 type: com.antar.notificationservice.event.PlaylistReadyEvent
 
-  grpc:
-    client:
-      channels:
-        auth-service:
-          address: static://auth-service:4091
-
 server:
-  port: 9007
+  port: 8087
+
+hearth:
+  auth:
+    jwks-uri: http://auth-service:9000/.well-known/jwks.json
 
 notification:
   ws:

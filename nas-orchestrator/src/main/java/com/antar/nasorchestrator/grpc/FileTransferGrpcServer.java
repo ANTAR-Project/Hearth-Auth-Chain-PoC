@@ -1,10 +1,10 @@
 package com.antar.nasorchestrator.grpc;
 
 import com.google.protobuf.ByteString;
-import com.tamojit.grpc.filetransfer.DownloadRequest;
-import com.tamojit.grpc.filetransfer.FileChunk;
-import com.tamojit.grpc.filetransfer.FileTransferGrpcServiceGrpc;
-import com.tamojit.grpc.filetransfer.UploadResponse;
+import com.antar.grpc.filetransfer.DownloadRequest;
+import com.antar.grpc.filetransfer.FileChunk;
+import com.antar.grpc.filetransfer.FileTransferGrpcServiceGrpc;
+import com.antar.grpc.filetransfer.UploadResponse;
 import com.antar.nasorchestrator.client.SmbFileClient;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;

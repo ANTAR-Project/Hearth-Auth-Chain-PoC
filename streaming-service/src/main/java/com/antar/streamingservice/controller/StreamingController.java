@@ -1,12 +1,12 @@
 package com.antar.streamingservice.controller;
 
+import com.antar.hearth.common.ScopeEnforcer;
+import com.antar.streamingservice.config.ServiceTokenRefresher;
 import com.antar.streamingservice.dto.PlaylistDto;
-import com.antar.streamingservice.security.TokenValidationFilter;
+import com.antar.streamingservice.hearth.HearthPrincipal;
 import com.antar.streamingservice.service.PlaylistService;
 import com.antar.streamingservice.service.StreamingService;
-import com.antar.streamingservice.util.ScopeWorkspaceByUsername;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -25,18 +25,19 @@ import java.util.List;
 @Validated
 @RequestMapping("/api/v1/stream")
 public class StreamingController {
-    private static final String NO_TRAVERSAL_REGEX = "^(?!.*\\.\\.).*$";
-    private static final String NO_TRAVERSAL_MSG = "Path cannot contain '..' segments";
-    private static final String NO_BACKSLASH_REGEX = "^[^\\\\]*$";
-    private static final String NO_BACKSLASH_MSG = "Path cannot contain backslashes";
-    private static final String NO_LEADING_SLASH_REGEX = "^(?!/).*$";
-    private static final String NO_LEADING_SLASH_MSG = "Path must be relative — do not start with '/'";
     private static final String MASTER_PLAYLIST_KEY_PREFIX = "streaming:playlist:";
 
     private final StreamingService streamingService;
     private final PlaylistService playlistService;
-    private final ScopeWorkspaceByUsername scopeWorkspaceByUsername;
+    private final ServiceTokenRefresher serviceTokenRefresher;
     private final RedisTemplate<String, String> redisTemplate;
+
+    private HearthPrincipal principal(HttpServletRequest request) {
+        HearthPrincipal p = (HearthPrincipal) request.getAttribute(HearthPrincipal.ATTR);
+        if (p == null) throw new IllegalStateException("Missing HearthPrincipal — ContextTokenFilter did not run");
+        ScopeEnforcer.of(p.scope()).enforce(p.username(), p.resourceId(), p.namespace());
+        return p;
+    }
 
     /**
      * Resolves the movie's NAS-relative playlist path from Redis, then proxies the raw M3U8 content through from nas-orchestrator.
@@ -48,14 +49,11 @@ public class StreamingController {
     @GetMapping("")
     public ResponseEntity<String> getPlaylist(
         HttpServletRequest request,
-        @RequestParam(value = "path", defaultValue = "")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path
+        @RequestParam(value = "path", defaultValue = "") String path
     ) {
-        String scopedPath = scopeWorkspaceByUsername.scopedPath(request, path);
-        log.info("Playlist request for movieId: {}", scopedPath);
+        HearthPrincipal p = principal(request);
+        String scopedPath = path.isEmpty() ? p.resourceId() : p.resourceId() + "/" + path;
+        log.info("Playlist request from {} for movieId: {}", p.username(), scopedPath);
 
         String playlistPath = redisTemplate.opsForValue().get(MASTER_PLAYLIST_KEY_PREFIX + scopedPath);
         if (playlistPath == null) {
@@ -63,7 +61,7 @@ public class StreamingController {
             return ResponseEntity.notFound().build();
         }
 
-        String token = (String) request.getAttribute(TokenValidationFilter.TOKEN_ATTRIBUTE);
+        String token = resolveStreamingToken(request);
 
         log.info("Proxying playlist for movieId: {} at path: {}", scopedPath, playlistPath);
         return ResponseEntity.ok()
@@ -73,9 +71,26 @@ public class StreamingController {
 
     @GetMapping("/playlists")
     public ResponseEntity<List<PlaylistDto>> getUserPlaylists(HttpServletRequest request) {
-        String username = scopeWorkspaceByUsername.workspaceRoot(request);
-        List<PlaylistDto> playLists = playlistService.getPlaylistsForUser(username);
+        HearthPrincipal p = principal(request);
+        List<PlaylistDto> playLists = playlistService.getPlaylistsForUser(p.resourceId());
 
         return ResponseEntity.ok(playLists);
+    }
+
+    private String resolveStreamingToken(HttpServletRequest request) {
+        String tokenParam = request.getParameter("token");
+        if (tokenParam != null && !tokenParam.isBlank()) {
+            return tokenParam;
+        }
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+        try {
+            return serviceTokenRefresher.get();
+        } catch (Exception e) {
+            log.warn("Could not obtain service token for streaming playlist proxying: {}", e.getMessage());
+            return "";
+        }
     }
 }

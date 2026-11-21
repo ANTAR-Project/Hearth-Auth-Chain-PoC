@@ -2,7 +2,7 @@ package com.antar.streamingservice.util;
 
 import com.antar.streamingservice.dto.PlaylistDto;
 
-public class NormalizeWorkspacePath {
+public final class NormalizeWorkspacePath {
     private NormalizeWorkspacePath() {
     }
 
@@ -16,7 +16,7 @@ public class NormalizeWorkspacePath {
     }
 
     /**
-     * The single definition of what a client sees for a playlist.
+     * The client workspace view of a playlist (paths relative to user workspace root).
      */
     public static PlaylistDto toClientView(String username, String rawPath, String thumbnailPath) {
         return new PlaylistDto(

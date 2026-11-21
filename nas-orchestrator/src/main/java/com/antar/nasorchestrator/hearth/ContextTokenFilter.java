@@ -25,7 +25,12 @@ public class ContextTokenFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest req) {
-        return !req.getRequestURI().startsWith("/internal/");
+        String uri = req.getRequestURI();
+        // Actuator and JWKS are open (internal infra)
+        if (uri.startsWith("/actuator") || uri.startsWith("/.well-known")) return true;
+        // HLS segments/playlists carry a short-lived ?token= query param validated by StreamingController
+        if (uri.startsWith("/api/v1/nas-orchestrator/stream/")) return true;
+        return false;
     }
 
     @Override

@@ -27,7 +27,7 @@ public record RouteMeta(
             s(h, "audience"), s(h, "resourceType"), s(h, "resourceId"),
             s(h, "qualifier"), s(h, "namespace"), s(h, "upstreamPath"),
             Boolean.parseBoolean(s(h, "public")),
-            Boolean.parseBoolean(s(h, "skipPolicy")),
+            Boolean.parseBoolean(s(h, "bypass-policy")) || Boolean.parseBoolean(s(h, "skipPolicy")),
             h.containsKey("params") ? (Map<String, String>) h.get("params") : Map.of());
     }
 

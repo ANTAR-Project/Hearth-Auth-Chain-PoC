@@ -1,13 +1,15 @@
 package com.antar.nasorchestrator.controller;
 
+import com.antar.hearth.common.ScopeEnforcer;
 import com.antar.nasorchestrator.dto.CreateFolderResponse;
 import com.antar.nasorchestrator.dto.FileListResponse;
 import com.antar.nasorchestrator.dto.FileUploadResponse;
 import com.antar.nasorchestrator.dto.FolderUploadResponse;
+import com.antar.nasorchestrator.hearth.HearthPrincipal;
 import com.antar.nasorchestrator.service.SharedWorkspaceService;
 import com.antar.nasorchestrator.util.MimeTypeResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.constraints.Pattern;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.*;
 import org.springframework.validation.annotation.Validated;
@@ -21,80 +23,69 @@ import java.io.InputStream;
 @RequestMapping("/api/v1/nas-orchestrator/shared")
 @Validated
 public class SharedWorkspaceController {
-    private static final String NO_TRAVERSAL_REGEX = "^(?!.*\\.\\.).*$";
-    private static final String NO_TRAVERSAL_MSG = "Path cannot contain '..' segments";
-    private static final String NO_BACKSLASH_REGEX = "^[^\\\\]*$";
-    private static final String NO_BACKSLASH_MSG = "Path cannot contain backslashes";
-    private static final String NO_LEADING_SLASH_REGEX = "^(?!/).*$";
-    private static final String NO_LEADING_SLASH_MSG = "Path must be relative — do not start with '/'";
 
     private final SharedWorkspaceService sharedWorkspaceService;
     private final MimeTypeResolver mimeTypeResolver;
 
-    public SharedWorkspaceController(
-        SharedWorkspaceService sharedWorkspaceService,
-        MimeTypeResolver mimeTypeResolver
-    ) {
+    public SharedWorkspaceController(SharedWorkspaceService sharedWorkspaceService, MimeTypeResolver mimeTypeResolver) {
         this.sharedWorkspaceService = sharedWorkspaceService;
         this.mimeTypeResolver = mimeTypeResolver;
     }
 
+    /** Enforces SHARED scope; path is NOT username-prefixed for shared workspace. */
+    private HearthPrincipal principal(HttpServletRequest request) {
+        HearthPrincipal p = (HearthPrincipal) request.getAttribute(HearthPrincipal.ATTR);
+        if (p == null) throw new IllegalStateException("Missing HearthPrincipal — ContextTokenFilter did not run");
+        ScopeEnforcer.of(p.scope()).enforce(p.username(), p.resourceId(), p.namespace());
+        return p;
+    }
+
     @GetMapping("/list")
     public ResponseEntity<FileListResponse> list(
-        @RequestParam(value = "path", defaultValue = "")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path
+        HttpServletRequest request,
+        @RequestParam(value = "path", defaultValue = "") String path
     ) throws IOException {
+        principal(request);  // enforce SHARED scope
         return ResponseEntity.ok(sharedWorkspaceService.listSharedWorkspace(path));
     }
 
     @PostMapping("/upload/file")
     public ResponseEntity<FileUploadResponse> uploadFile(
-        @RequestParam(value = "path", defaultValue = "")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path,
+        HttpServletRequest request,
+        @RequestParam(value = "path", defaultValue = "") String path,
         @RequestParam("file") MultipartFile file
     ) throws IOException {
+        principal(request);
         return ResponseEntity.ok(sharedWorkspaceService.uploadToSharedWorkspace(path, file));
     }
 
     @PostMapping("/upload/folder")
     public ResponseEntity<FolderUploadResponse> uploadFolder(
-        @RequestParam(value = "path", defaultValue = "")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path,
+        HttpServletRequest request,
+        @RequestParam(value = "path", defaultValue = "") String path,
         @RequestParam("files") MultipartFile[] files,
         @RequestParam("relativePaths") String[] relativePaths
     ) throws IOException {
+        principal(request);
         return ResponseEntity.ok(sharedWorkspaceService.uploadFolderToSharedWorkspace(path, files, relativePaths));
     }
 
     @GetMapping("/download")
     public void download(
-        @RequestParam(value = "path", defaultValue = "")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path,
+        HttpServletRequest request,
+        @RequestParam(value = "path", defaultValue = "") String path,
         HttpServletResponse response
     ) throws IOException {
+        principal(request);
         sharedWorkspaceService.downloadFromSharedWorkspace(path, response);
     }
 
     @GetMapping("/preview")
     public ResponseEntity<InputStreamResource> preview(
-        @RequestParam(value = "path", defaultValue = "")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path
+        HttpServletRequest request,
+        @RequestParam(value = "path", defaultValue = "") String path
     ) throws IOException {
+        principal(request);
         String filename = path.substring(path.lastIndexOf('/') + 1);
 
         if (!mimeTypeResolver.isPreviewable(filename)) {
@@ -113,31 +104,29 @@ public class SharedWorkspaceController {
 
     @DeleteMapping("/delete")
     public ResponseEntity<Void> delete(
-        @RequestParam(value = "path", defaultValue = "")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path
+        HttpServletRequest request,
+        @RequestParam(value = "path", defaultValue = "") String path
     ) throws IOException {
+        principal(request);
         sharedWorkspaceService.deleteFromSharedWorkspace(path);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/mkdir")
     public ResponseEntity<CreateFolderResponse> mkdir(
-        @RequestParam("path")
-        @Pattern(regexp = NO_TRAVERSAL_REGEX, message = NO_TRAVERSAL_MSG)
-        @Pattern(regexp = NO_BACKSLASH_REGEX, message = NO_BACKSLASH_MSG)
-        @Pattern(regexp = NO_LEADING_SLASH_REGEX, message = NO_LEADING_SLASH_MSG)
-        String path
+        HttpServletRequest request,
+        @RequestParam("path") String path
     ) throws IOException {
+        principal(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(sharedWorkspaceService.createFolderInSharedWorkspace(path));
     }
 
     @DeleteMapping("/clear")
-    public ResponseEntity<Void> clear() throws IOException {
+    public ResponseEntity<Void> clear(HttpServletRequest request) throws IOException {
+        principal(request);
         sharedWorkspaceService.clearSharedWorkspace();
         return ResponseEntity.noContent().build();
     }
 }
+
