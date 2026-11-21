@@ -23,7 +23,7 @@ spring:
                 type: com.antar.notificationservice.event.PlaylistReadyEvent
 
 server:
-  port: 8087
+  port: 9007
 
 auth:
   service:

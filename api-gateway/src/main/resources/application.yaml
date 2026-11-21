@@ -346,7 +346,7 @@ spring:
                   public: true
 
             # ─────────────────────────────────────────────
-            # VIDEO SERVICE  (video-service:8082)
+            # VIDEO SERVICE  (video-service:9004)
             # ─────────────────────────────────────────────
 
             - id: video-upload
@@ -363,7 +363,7 @@ spring:
                   namespace: OWN
 
             # ─────────────────────────────────────────────
-            # STREAMING SERVICE  (streaming-service:8084)
+            # STREAMING SERVICE  (streaming-service:9006)
             # ─────────────────────────────────────────────
 
             - id: streaming-root
@@ -393,7 +393,7 @@ spring:
                   namespace: OWN
 
             # ─────────────────────────────────────────────
-            # ELEMENT REGISTRY  (element-registry:9200)
+            # ELEMENT REGISTRY  (element-registry:9003)
             # ─────────────────────────────────────────────
 
             - id: element-state
@@ -423,7 +423,7 @@ spring:
                   namespace: OWN
 
             # ─────────────────────────────────────────────
-            # NOTIFICATION SERVICE  (notification-service:8087)
+            # NOTIFICATION SERVICE  (notification-service:9007)
             # WebSocket — notification-service handles its own upgrade auth
             # ─────────────────────────────────────────────
 
