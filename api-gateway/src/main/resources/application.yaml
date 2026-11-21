@@ -398,7 +398,7 @@ spring:
 
             - id: element-state
               uri: http://element-registry:9003
-              predicates: [Path=/api/v1/elements/{elementId}/state, Method=PUT]
+              predicates: ["Path=/api/v1/elements/{elementId}/state", Method=PUT]
               metadata:
                 hearth:
                   intent: element.device.control
@@ -411,7 +411,7 @@ spring:
 
             - id: element-read
               uri: http://element-registry:9003
-              predicates: [Path=/api/v1/elements/{elementId}, Method=GET]
+              predicates: ["Path=/api/v1/elements/{elementId}", Method=GET]
               metadata:
                 hearth:
                   intent: element.device.read
