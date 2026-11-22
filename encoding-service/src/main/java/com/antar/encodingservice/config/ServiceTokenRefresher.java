@@ -71,14 +71,22 @@ public class ServiceTokenRefresher {
                 .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JsonNode node = json.readTree(response.body());
+            if (response.statusCode() != 200) {
+                log.error("Service token refresh failed with status {}: {}", response.statusCode(), response.body());
+                return;
+            }
 
-            currentToken.set(node.get("accessToken").asText());
-            long expiresIn = node.get("expiresIn").asLong(600);
+            JsonNode node = json.readTree(response.body());
+            JsonNode tokenNode = node.has("accessToken") ? node.get("accessToken") : node.get("access_token");
+            if (tokenNode != null) {
+                currentToken.set(tokenNode.asText());
+            }
+
+            long expiresIn = node.has("expiresIn") ? node.get("expiresIn").asLong(600) : (node.has("expires_in") ? node.get("expires_in").asLong(600) : 600);
             refreshAt = Instant.now().plusSeconds(expiresIn - 60);
 
             log.info("Service token refreshed for {}", clientId);
-        } catch (IOException | InterruptedException e) {
+        } catch (Exception e) {
             log.error("Service token refresh failed: {}", e.getMessage());
         }
     }

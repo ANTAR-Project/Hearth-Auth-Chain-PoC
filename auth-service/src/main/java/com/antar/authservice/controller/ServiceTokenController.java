@@ -6,12 +6,10 @@ import com.antar.authservice.model.ServiceClient;
 import com.antar.authservice.repository.ServiceClientRepository;
 import com.antar.authservice.security.AccessTokenIssuer;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Set;
@@ -33,10 +31,35 @@ public class ServiceTokenController {
         this.issuer = issuer;
     }
 
-    @PostMapping("/token")
-    public ResponseEntity<?> token(@Valid @RequestBody ClientCredentialsRequest req) {
+    @PostMapping(value = "/token", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> tokenJson(@Valid @RequestBody ClientCredentialsRequest req) {
+        return processToken(req);
+    }
+
+    @PostMapping(value = "/token", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> tokenForm(
+        @RequestParam(name = "grant_type", required = false) String grantTypeParam,
+        @RequestParam(name = "grantType", required = false) String grantTypeAlt,
+        @RequestParam(name = "client_id", required = false) String clientIdParam,
+        @RequestParam(name = "clientId", required = false) String clientIdAlt,
+        @RequestParam(name = "client_secret", required = false) String clientSecretParam,
+        @RequestParam(name = "clientSecret", required = false) String clientSecretAlt,
+        @RequestParam(name = "audience", required = false) String audience,
+        @RequestParam(name = "scope", required = false) String scope
+    ) {
+        String grantType = grantTypeParam != null ? grantTypeParam : grantTypeAlt;
+        String clientId = clientIdParam != null ? clientIdParam : clientIdAlt;
+        String clientSecret = clientSecretParam != null ? clientSecretParam : clientSecretAlt;
+        return processToken(new ClientCredentialsRequest(grantType, clientId, clientSecret, audience, scope));
+    }
+
+    private ResponseEntity<?> processToken(ClientCredentialsRequest req) {
         if (!"client_credentials".equals(req.grantType()))
             return ResponseEntity.badRequest().body(Map.of("error", "unsupported_grant_type"));
+
+        if (req.clientId() == null || req.clientSecret() == null || req.audience() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "invalid_request", "detail", "missing required fields"));
+        }
 
         ServiceClient c = clients.findByClientIdAndAudience(req.clientId(), req.audience())
             .orElseThrow(() -> new AuthController.AuthException("INVALID_CLIENT", 401));

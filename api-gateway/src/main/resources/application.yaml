@@ -9,6 +9,9 @@ spring:
 
   cloud:
     gateway:
+      filter:
+        retry:
+          enabled: false
       server:
         webflux:
           httpclient:
