@@ -1,0 +1,832 @@
+{
+  "info": {
+    "name": "Hearth Auth-Chain PoC",
+    "_postman_id": "hearth-auth-chain-poc-v1",
+    "description": "Full end-to-end test suite for the Hearth Auth-Chain PoC. Base URL: http://localhost:8443 (api-gateway). Run folders in order: 0 → 1 → 2 → 3 → ...",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",          "value": "http://localhost:8443",   "type": "string" },
+    { "key": "owner_username",    "value": "hearth-owner",            "type": "string" },
+    { "key": "owner_password",    "value": "REPLACE_ME",              "type": "string" },
+    { "key": "owner_token",       "value": "",                        "type": "string" },
+    { "key": "owner_refresh",     "value": "",                        "type": "string" },
+    { "key": "owner_session_id",  "value": "",                        "type": "string" },
+    { "key": "resident_username", "value": "alice",                   "type": "string" },
+    { "key": "resident_password", "value": "password123",             "type": "string" },
+    { "key": "resident_token",    "value": "",                        "type": "string" },
+    { "key": "resident_refresh",  "value": "",                        "type": "string" },
+    { "key": "resident_session_id","value": "",                       "type": "string" },
+    { "key": "guest_username",    "value": "bob-guest",               "type": "string" },
+    { "key": "guest_password",    "value": "guestpass1",              "type": "string" },
+    { "key": "guest_token",       "value": "",                        "type": "string" },
+    { "key": "element_id",        "value": "elem-001",                "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "00 · Health & JWKS",
+      "item": [
+        {
+          "name": "Gateway Health",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8081/internal/health",
+            "description": "Management port (8081) — no auth needed. Checks liveness of the gateway."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "JWKS endpoint (public)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/.well-known/jwks.json",
+            "description": "Public route — no token needed. Returns the gateway's EC public keys."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.test('has keys array', () => pm.expect(j).to.have.property('keys'));",
+            "pm.test('at least one key', () => pm.expect(j.keys.length).to.be.above(0));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "01 · Auth – Login (public routes)",
+      "item": [
+        {
+          "name": "1.1 Owner Login ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{owner_username}}\",\n  \"password\": \"{{owner_password}}\",\n  \"deviceId\": \"postman-test-device\"\n}"
+            },
+            "description": "Public route. No Authorization header needed. Set OWNER credentials in collection variables."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.test('has accessToken', () => pm.expect(j).to.have.property('accessToken'));",
+            "pm.collectionVariables.set('owner_token',   j.accessToken);",
+            "pm.collectionVariables.set('owner_refresh', j.refreshToken);",
+            "// Extract session-id from JWT claims (sub = UUID session)",
+            "try {",
+            "  const payload = JSON.parse(atob(j.accessToken.split('.')[1]));",
+            "  pm.collectionVariables.set('owner_session_id', payload.sid ?? '');",
+            "} catch(e) {}"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "1.2 Owner Login – wrong password ❌",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{owner_username}}\",\n  \"password\": \"wrong-password\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 401', () => pm.response.to.have.status(401));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "1.3 Login – missing fields ❌",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "02 · Auth – User Management (OWNER only)",
+      "item": [
+        {
+          "name": "2.1 Create RESIDENT user ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/users",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{owner_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{resident_username}}\",\n  \"password\": \"{{resident_password}}\",\n  \"role\": \"RESIDENT\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 201', () => pm.response.to.have.status(201));",
+            "const j = pm.response.json();",
+            "pm.test('role is RESIDENT', () => pm.expect(j.role).to.eql('RESIDENT'));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "2.2 Create GUEST user ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/users",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{owner_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{guest_username}}\",\n  \"password\": \"{{guest_password}}\",\n  \"role\": \"GUEST\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 201', () => pm.response.to.have.status(201));",
+            "pm.test('role is GUEST', () => pm.expect(pm.response.json().role).to.eql('GUEST'));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "2.3 Create OWNER role – forbidden ❌",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/users",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{owner_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"badowner\",\n  \"password\": \"badowner99\",\n  \"role\": \"OWNER\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "2.4 Create user – no token ❌",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/users",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"sneaky\",\n  \"password\": \"sneaky123\",\n  \"role\": \"RESIDENT\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 401', () => pm.response.to.have.status(401));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "2.5 List all users ✅",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/auth/users",
+            "header": [{ "key": "Authorization", "value": "Bearer {{owner_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "pm.test('is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "2.6 Duplicate username ❌",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/users",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{owner_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{resident_username}}\",\n  \"password\": \"anotherpass\",\n  \"role\": \"RESIDENT\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 409', () => pm.response.to.have.status(409));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "03 · Auth – Resident & Guest Login",
+      "item": [
+        {
+          "name": "3.1 Resident Login ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{resident_username}}\",\n  \"password\": \"{{resident_password}}\",\n  \"deviceId\": \"postman-resident-device\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.collectionVariables.set('resident_token',      j.accessToken);",
+            "pm.collectionVariables.set('resident_refresh',    j.refreshToken);",
+            "try {",
+            "  const p = JSON.parse(atob(j.accessToken.split('.')[1]));",
+            "  pm.collectionVariables.set('resident_session_id', p.sid ?? '');",
+            "} catch(e) {}"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "3.2 Guest Login ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{guest_username}}\",\n  \"password\": \"{{guest_password}}\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('guest_token', pm.response.json().accessToken);"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "04 · Auth – Token Refresh & Logout",
+      "item": [
+        {
+          "name": "4.1 Refresh token ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/refresh",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{owner_refresh}}\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.collectionVariables.set('owner_token',   j.accessToken);",
+            "pm.collectionVariables.set('owner_refresh', j.refreshToken);"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "4.2 Refresh reuse (old token) – should fail ❌",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/refresh",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{owner_refresh}}\"\n}",
+              "description": "Run 4.1 first, then immediately run this. The prev refresh token should be single-use."
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 401 or 400 on reuse', () => {",
+            "  pm.expect(pm.response.code).to.be.oneOf([400, 401, 403]);",
+            "});"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "4.3 Logout OWNER ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/logout",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{owner_token}}" },
+              { "key": "X-Session-Id",  "value": "{{owner_session_id}}" }
+            ]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 204', () => pm.response.to.have.status(204));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "4.4 Re-login Owner (restore token after logout)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{owner_username}}\",\n  \"password\": \"{{owner_password}}\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const j = pm.response.json();",
+            "pm.collectionVariables.set('owner_token',   j.accessToken);",
+            "pm.collectionVariables.set('owner_refresh', j.refreshToken);"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "05 · NAS – Own Workspace (RESIDENT)",
+      "description": "Requires resident_token. Exercises OWN-scope NAS policy rules.",
+      "item": [
+        {
+          "name": "5.1 List own files ✅",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/nas/files/list",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200 or 404 (workspace may be empty)', () => {",
+            "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+            "});"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "5.2 Make directory ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/nas/files/mkdir",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{resident_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"test-folder\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy passes (2xx)', () => pm.expect(pm.response.code).to.be.below(300));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "5.3 Upload file (multipart) ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/nas/files/upload/file",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "path",   "value": "test-folder", "type": "text" },
+                { "key": "file",   "type": "file",          "src": "/path/to/sample.txt",
+                  "description": "Replace with a local file path before running" }
+              ]
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy allows upload (2xx or 413)', () => pm.expect(pm.response.code).to.be.oneOf([200,201,202,413]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "5.4 Download file ✅",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/nas/files/download?path=test-folder%2Fsample.txt",
+              "query": [{ "key": "path", "value": "test-folder/sample.txt" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy passes', () => pm.expect(pm.response.code).to.be.oneOf([200,404]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "5.5 Delete file ✅",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/v1/nas/files/delete?path=test-folder%2Fsample.txt",
+              "query": [{ "key": "path", "value": "test-folder/sample.txt" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy allows delete', () => pm.expect(pm.response.code).to.be.oneOf([200,204,404]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "5.6 GUEST cannot list OWN workspace ❌",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/nas/files/list",
+            "header": [{ "key": "Authorization", "value": "Bearer {{guest_token}}" }],
+            "description": "GUEST has no OWN-workspace policy — expect 403 from policy-registry."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy denies GUEST (403)', () => pm.expect(pm.response.code).to.be.oneOf([403, 401]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "5.7 Unauthenticated NAS access ❌",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/nas/files/list"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('gateway rejects (401)', () => pm.expect(pm.response.code).to.eql(401));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "06 · NAS – Shared Workspace",
+      "description": "SHARED-scope routes. RESIDENT can read+write; GUEST can only read.",
+      "item": [
+        {
+          "name": "6.1 RESIDENT lists shared ✅",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/nas/shared/list",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy allows RESIDENT read (2xx or 404)', () => pm.expect(pm.response.code).to.be.oneOf([200,404]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "6.2 RESIDENT uploads to shared ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/nas/shared/upload/file",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "path",  "value": "shared-root",  "type": "text" },
+                { "key": "file",  "type": "file", "src": "/path/to/shared.txt" }
+              ]
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy allows (2xx or 413)', () => pm.expect(pm.response.code).to.be.oneOf([200,201,202,413]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "6.3 GUEST lists shared ✅",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/nas/shared/list",
+            "header": [{ "key": "Authorization", "value": "Bearer {{guest_token}}" }],
+            "description": "GUEST policy: nas.shared.guest.read — READ on SHARED scope allowed."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('GUEST can read shared (2xx or 404)', () => pm.expect(pm.response.code).to.be.oneOf([200,404]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "6.4 GUEST cannot upload to shared ❌",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/nas/shared/upload/file",
+            "header": [{ "key": "Authorization", "value": "Bearer {{guest_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "path", "value": "shared-root", "type": "text" }
+              ]
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('GUEST cannot write shared (403)', () => pm.expect(pm.response.code).to.be.oneOf([403, 401]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "6.5 OWNER clears shared ✅",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/nas/shared/clear",
+            "header": [{ "key": "Authorization", "value": "Bearer {{owner_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('OWNER can clear shared (2xx)', () => pm.expect(pm.response.code).to.be.below(300));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "07 · NAS – Workspace Lifecycle (OWNER)",
+      "item": [
+        {
+          "name": "7.1 Create workspace for user ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/nas/workspace/create",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{owner_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{resident_username}}\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 2xx', () => pm.expect(pm.response.code).to.be.below(300));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "7.2 Clear workspace ✅",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/nas/workspace/clear",
+            "header": [{ "key": "Authorization", "value": "Bearer {{owner_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 2xx', () => pm.expect(pm.response.code).to.be.below(300));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "7.3 Delete workspace ✅",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/nas/workspace/delete",
+            "header": [{ "key": "Authorization", "value": "Bearer {{owner_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 2xx', () => pm.expect(pm.response.code).to.be.below(300));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "08 · Video Upload",
+      "item": [
+        {
+          "name": "8.1 Upload video (RESIDENT) ✅",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/videos/upload",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "/path/to/sample.mp4",
+                  "description": "Replace with a real video file path" }
+              ]
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy allows video upload (2xx or 413)', () => pm.expect(pm.response.code).to.be.oneOf([200,201,202,413]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "8.2 GUEST cannot upload video ❌",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/videos/upload",
+            "header": [{ "key": "Authorization", "value": "Bearer {{guest_token}}" }],
+            "body": { "mode": "formdata", "formdata": [] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('GUEST cannot upload video (403)', () => pm.expect(pm.response.code).to.be.oneOf([403, 401]));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "09 · Streaming",
+      "item": [
+        {
+          "name": "9.1 Get streaming root (RESIDENT) ✅",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/stream",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy allows stream (2xx or 404)', () => pm.expect(pm.response.code).to.be.oneOf([200,404]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "9.2 List playlists (RESIDENT) ✅",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/stream/playlists",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 2xx or 404', () => pm.expect(pm.response.code).to.be.oneOf([200,404]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "9.3 HLS playlist (public – requires ?token=) ✅",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/nas/stream/playlist?token=REPLACE_WITH_STREAM_TOKEN&path=some/video.m3u8",
+              "query": [
+                { "key": "token", "value": "REPLACE_WITH_STREAM_TOKEN" },
+                { "key": "path",  "value": "some/video.m3u8" }
+              ]
+            },
+            "description": "Public route — gateway passes through, nas-orchestrator validates ?token= internally. No Authorization header needed."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('gateway does not block public route', () => pm.expect(pm.response.code).to.not.eql(401));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "9.4 HLS segment (public) ✅",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/nas/stream/segment?token=REPLACE_WITH_STREAM_TOKEN&path=some/segment0.ts",
+              "query": [
+                { "key": "token", "value": "REPLACE_WITH_STREAM_TOKEN" },
+                { "key": "path",  "value": "some/segment0.ts" }
+              ]
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('not 401', () => pm.expect(pm.response.code).to.not.eql(401));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "10 · Element Registry",
+      "item": [
+        {
+          "name": "10.1 Read element state (RESIDENT) ✅",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/elements/{{element_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy allows element read (2xx or 404)', () => pm.expect(pm.response.code).to.be.oneOf([200,404]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "10.2 Control element state (RESIDENT) ✅",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/v1/elements/{{element_id}}/state",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{resident_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"state\": \"ON\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('policy allows CONTROL (2xx or 404)', () => pm.expect(pm.response.code).to.be.oneOf([200,204,404]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "10.3 GUEST cannot control element ❌",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/v1/elements/{{element_id}}/state",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{guest_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"state\": \"ON\"\n}"
+            },
+            "description": "Policy: element.camera.guest.deny — DENY STREAM on ELEMENT/CAMERA. CONTROL should also be blocked for GUEST."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('GUEST denied (403)', () => pm.expect(pm.response.code).to.be.oneOf([403, 401]));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "11 · Service Token (OAuth client_credentials)",
+      "description": "Direct call to auth-service (bypasses gateway — for internal/svc-to-svc testing). These call auth-service directly on port 9000 IF it's exposed, otherwise this tests the gateway's passthrough.",
+      "item": [
+        {
+          "name": "11.1 Client credentials – JSON ✅",
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:9000/oauth/token",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grantType\": \"client_credentials\",\n  \"clientId\": \"video-service\",\n  \"clientSecret\": \"REPLACE_WITH_VIDEO_SVC_SECRET\",\n  \"audience\": \"nas-orchestrator\",\n  \"scope\": \"nas:read:raw/**\"\n}"
+            },
+            "description": "Direct auth-service call. Only works if port 9000 is published. Use for local dev."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "pm.test('has accessToken', () => pm.expect(pm.response.json()).to.have.property('accessToken'));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "11.2 Client credentials – form-urlencoded ✅",
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:9000/oauth/token",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type",    "value": "client_credentials" },
+                { "key": "client_id",     "value": "video-service" },
+                { "key": "client_secret", "value": "REPLACE_WITH_VIDEO_SVC_SECRET" },
+                { "key": "audience",      "value": "nas-orchestrator" },
+                { "key": "scope",         "value": "nas:read:raw/**" }
+              ]
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "11.3 Wrong secret ❌",
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:9000/oauth/token",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grantType\": \"client_credentials\",\n  \"clientId\": \"video-service\",\n  \"clientSecret\": \"wrong-secret\",\n  \"audience\": \"nas-orchestrator\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 401', () => pm.response.to.have.status(401));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "11.4 Out-of-scope request ❌",
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:9000/oauth/token",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grantType\": \"client_credentials\",\n  \"clientId\": \"video-service\",\n  \"clientSecret\": \"REPLACE_WITH_VIDEO_SVC_SECRET\",\n  \"audience\": \"nas-orchestrator\",\n  \"scope\": \"admin:all\"\n}"
+            }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('status 400 invalid_scope', () => pm.response.to.have.status(400));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    },
+    {
+      "name": "12 · Policy Boundary Tests",
+      "description": "Verify the policy enforcement at the gateway layer without caring about downstream responses.",
+      "item": [
+        {
+          "name": "12.1 Expired token ❌",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/nas/files/list",
+            "header": [{ "key": "Authorization", "value": "Bearer eyJhbGciOiJFUzI1NiIsImtpZCI6ImZha2UifQ.eyJzdWIiOiJ0ZXN0IiwiZXhwIjoxfQ.fake-sig" }],
+            "description": "Deliberately malformed/expired JWT. Gateway should reject before reaching NAS."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('gateway rejects bad token (401)', () => pm.expect(pm.response.code).to.eql(401));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "12.2 Valid token, wrong HTTP method ❌",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }],
+            "description": "Login route only accepts POST — gateway predicate should block DELETE."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('gateway returns 404/405', () => pm.expect(pm.response.code).to.be.oneOf([404,405]));"
+          ], "type": "text/javascript" }}]
+        },
+        {
+          "name": "12.3 Resident cannot access another user's workspace ❌",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/nas/files/list?username={{guest_username}}",
+              "query": [{ "key": "username", "value": "{{guest_username}}" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{resident_token}}" }],
+            "description": "resourceId is bound to the JWT subject (OWN scope), so the downstream service should block cross-user access."
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('cross-user access denied (403 or 404)', () => pm.expect(pm.response.code).to.be.oneOf([403,404]));"
+          ], "type": "text/javascript" }}]
+        }
+      ]
+    }
+  ]
+}
