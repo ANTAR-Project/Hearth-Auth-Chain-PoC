@@ -49,6 +49,7 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
                 .then(Problems.write(ex, 401, "AUTH_INVALID"));
 
         return Mono.fromCallable(() -> accessVerifier.verify(auth.substring(7)))
+            .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
             .onErrorResume(JwtVerifier.Rejected.class, e ->
                 audit.authRejected(ex, "AUTH_INVALID")
                     .then(Mono.error(new RejectRequest(401, "AUTH_INVALID"))))

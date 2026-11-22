@@ -6,6 +6,8 @@ import com.nimbusds.jose.jwk.JWKSelector;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
+import com.nimbusds.jose.util.DefaultResourceRetriever;
+import com.nimbusds.jose.util.ResourceRetriever;
 import com.nimbusds.jose.proc.SecurityContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,9 +42,9 @@ public final class DiskBackedJwkSource implements JWKSource<SecurityContext> {
         URL jwksUrl,
         String issuerName
     ) {
-        this.delegate = JWKSourceBuilder.create(jwksUrl)
+        this.delegate = JWKSourceBuilder.create(jwksUrl, new DefaultResourceRetriever(5000, 5000))
             .retrying(true)
-            .rateLimited(30_000)
+            .rateLimited(5_000)
             .build();
 
         Path dir = Path.of("/var/hearth/jwks");
