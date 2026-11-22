@@ -49,6 +49,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
 EOSQL
 
+# Ensure pgcrypto extension is installed in antar_auth once
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname antar_auth \
+     -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+
 # Helper to hash a secret using pgcrypto if not already a hash
 hash_secret() {
   local val="$1"
@@ -59,7 +63,7 @@ hash_secret() {
   else
     local h
     h=$(psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname antar_auth -tA \
-         -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; SELECT crypt('$val', gen_salt('bf', 10));")
+         -c "SELECT crypt('$val', gen_salt('bf', 10));" | tr -d '\r\n[:space:]')
     echo "{bcrypt}$h"
   fi
 }

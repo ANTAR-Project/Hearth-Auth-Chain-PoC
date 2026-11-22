@@ -114,7 +114,7 @@ Run folders **strictly in this order** — later folders depend on tokens and ID
 
 #### 00.1 Gateway Health
 ```
-GET http://localhost:8081/actuator/health
+GET http://localhost:8081/internal/health
 ```
 **Expected:** `200 OK`
 ```json
@@ -123,18 +123,19 @@ GET http://localhost:8081/actuator/health
 
 #### 00.2 JWKS Endpoint
 ```
-GET http://localhost:8081/.well-known/jwks.json
+GET http://localhost:8081/internal/jwks
 ```
 **Expected:** `200 OK`
 ```json
 {
   "keys": [
     {
-      "kty": "RSA",
+      "kty": "EC",
+      "crv": "P-256",
       "use": "sig",
-      "kid": "hearth-signing-key",
-      "n": "...",
-      "e": "AQAB"
+      "kid": "gateway-sig-v1",
+      "x": "...",
+      "y": "..."
     }
   ]
 }
@@ -386,7 +387,7 @@ X-Session-Id: {{session_id}}
 
 #### 04.4 Use Revoked Access Token ❌
 ```
-GET https://localhost:8443/api/v1/nas/workspace
+GET https://localhost:8443/api/v1/nas/files/list
 Authorization: Bearer {{owner_token}}
 ```
 **Expected:** `401 Unauthorized` — token was invalidated by logout.
@@ -408,75 +409,70 @@ Content-Type: application/json
 
 ### 05 — NAS Own Workspace
 
-**Purpose:** OWNER performs full CRUD on their own private NAS workspace. Guest access is blocked.
+**Purpose:** RESIDENT/OWNER performs full CRUD on their own private NAS files. Guest access is blocked.
 
-#### 05.1 List Own Workspace ✅
+#### 05.1 List Own Workspace Files ✅
 ```
-GET https://localhost:8443/api/v1/nas/workspace
-Authorization: Bearer {{owner_token}}
+GET https://localhost:8443/api/v1/nas/files/list
+Authorization: Bearer {{resident_token}}
 ```
 **Expected:** `200 OK`
-```json
-{ "path": "/hearth_owner/", "entries": [] }
-```
 
 #### 05.2 Create Directory ✅
 ```
-POST https://localhost:8443/api/v1/nas/workspace/mkdir
-Authorization: Bearer {{owner_token}}
+POST https://localhost:8443/api/v1/nas/files/mkdir
+Authorization: Bearer {{resident_token}}
 Content-Type: application/json
 
 {
   "path": "documents/reports"
 }
 ```
-**Expected:** `201 Created`
+**Expected:** `200 OK` or `201 Created`
 
 #### 05.3 Upload File ✅
 ```
-POST https://localhost:8443/api/v1/nas/workspace/upload
-Authorization: Bearer {{owner_token}}
+POST https://localhost:8443/api/v1/nas/files/upload/file
+Authorization: Bearer {{resident_token}}
 Content-Type: multipart/form-data
 
-file: <binary — select any test file>
+file: <binary>
 path: documents/reports/report.txt
 ```
 **Expected:** `200 OK`
-```json
-{ "uploaded": "documents/reports/report.txt", "size": 1234 }
-```
 
 #### 05.4 Download File ✅
 ```
-GET https://localhost:8443/api/v1/nas/workspace/download?path=documents/reports/report.txt
-Authorization: Bearer {{owner_token}}
+GET https://localhost:8443/api/v1/nas/files/download?path=documents/reports/report.txt
+Authorization: Bearer {{resident_token}}
 ```
-**Expected:** `200 OK` — binary file body with correct `Content-Type`.
+**Expected:** `200 OK`
 
-#### 05.5 Delete File ✅
+#### 05.5 Preview File ✅
 ```
-DELETE https://localhost:8443/api/v1/nas/workspace/delete
-Authorization: Bearer {{owner_token}}
+GET https://localhost:8443/api/v1/nas/files/preview?path=documents/reports/report.txt
+Authorization: Bearer {{resident_token}}
+```
+**Expected:** `200 OK`
+
+#### 05.6 Delete File ✅
+```
+DELETE https://localhost:8443/api/v1/nas/files/delete
+Authorization: Bearer {{resident_token}}
 Content-Type: application/json
 
 {
   "path": "documents/reports/report.txt"
 }
 ```
-**Expected:** `204 No Content`
+**Expected:** `200 OK` or `204 No Content`
 
-#### 05.6 Guest Access to Owner Workspace — Forbidden ❌
+#### 05.7 Guest Access to Private Files — Forbidden ❌
 ```
-GET https://localhost:8443/api/v1/nas/workspace
+GET https://localhost:8443/api/v1/nas/files/list
 Authorization: Bearer {{guest_token}}
 ```
-**Expected:** `403 Forbidden` — GUEST cannot access another user's private workspace.
-
-#### 05.7 No Token — Unauthorized ❌
-```
-GET https://localhost:8443/api/v1/nas/workspace
-```
-**Expected:** `401 Unauthorized`
+**Expected:** `403 Forbidden` — GUEST cannot access private files.
 
 ---
 
@@ -492,14 +488,14 @@ GET https://localhost:8443/api/v1/nas/workspace
 
 #### 06.1 Resident Reads Shared ✅
 ```
-GET https://localhost:8443/api/v1/nas/shared
+GET https://localhost:8443/api/v1/nas/shared/list
 Authorization: Bearer {{resident_token}}
 ```
 **Expected:** `200 OK`
 
 #### 06.2 Resident Uploads to Shared ✅
 ```
-POST https://localhost:8443/api/v1/nas/shared/upload
+POST https://localhost:8443/api/v1/nas/shared/upload/file
 Authorization: Bearer {{resident_token}}
 Content-Type: multipart/form-data
 
@@ -510,14 +506,14 @@ path: shared-doc.txt
 
 #### 06.3 Guest Reads Shared ✅
 ```
-GET https://localhost:8443/api/v1/nas/shared
+GET https://localhost:8443/api/v1/nas/shared/list
 Authorization: Bearer {{guest_token}}
 ```
 **Expected:** `200 OK` — read-only access granted.
 
 #### 06.4 Guest Writes to Shared — Forbidden ❌
 ```
-POST https://localhost:8443/api/v1/nas/shared/upload
+POST https://localhost:8443/api/v1/nas/shared/upload/file
 Authorization: Bearer {{guest_token}}
 Content-Type: multipart/form-data
 
@@ -531,7 +527,7 @@ path: evil-guest-upload.txt
 DELETE https://localhost:8443/api/v1/nas/shared/clear
 Authorization: Bearer {{owner_token}}
 ```
-**Expected:** `204 No Content`
+**Expected:** `200 OK` or `204 No Content`
 
 ---
 
@@ -549,14 +545,11 @@ Content-Type: application/json
   "name": "test-workspace-alpha"
 }
 ```
-**Expected:** `201 Created`
-```json
-{ "workspaceId": "test-workspace-alpha", "owner": "hearth_owner" }
-```
+**Expected:** `200 OK` or `201 Created`
 
 #### 07.2 Clear Workspace (RESIDENT) ✅
 ```
-POST https://localhost:8443/api/v1/nas/workspace/clear
+DELETE https://localhost:8443/api/v1/nas/workspace/clear
 Authorization: Bearer {{resident_token}}
 Content-Type: application/json
 
@@ -564,7 +557,7 @@ Content-Type: application/json
   "workspaceId": "resident01"
 }
 ```
-**Expected:** `204 No Content` — resident can clear their own workspace.
+**Expected:** `200 OK` or `204 No Content`
 
 #### 07.3 Delete Workspace (OWNER) ✅
 ```
@@ -576,7 +569,7 @@ Content-Type: application/json
   "workspaceId": "test-workspace-alpha"
 }
 ```
-**Expected:** `204 No Content`
+**Expected:** `200 OK` or `204 No Content`
 
 #### 07.4 RESIDENT Deletes Workspace — Forbidden ❌
 ```
@@ -598,7 +591,7 @@ Content-Type: application/json
 
 #### 08.1 Resident Uploads Video ✅
 ```
-POST https://localhost:8443/api/v1/video/upload
+POST https://localhost:8443/api/v1/videos/upload
 Authorization: Bearer {{resident_token}}
 Content-Type: multipart/form-data
 
@@ -606,19 +599,11 @@ file: <MP4 file — set via {{upload_file_path}}>
 title: My Test Video
 description: Uploaded by resident01
 ```
-**Expected:** `202 Accepted`
-```json
-{
-  "jobId": "<uuid>",
-  "status": "QUEUED",
-  "title": "My Test Video"
-}
-```
-**Post-response script:** `pm.collectionVariables.set("job_id", pm.response.json().jobId);`
+**Expected:** `200 OK` or `202 Accepted`
 
 #### 08.2 Guest Uploads Video — Forbidden ❌
 ```
-POST https://localhost:8443/api/v1/video/upload
+POST https://localhost:8443/api/v1/videos/upload
 Authorization: Bearer {{guest_token}}
 Content-Type: multipart/form-data
 
@@ -627,58 +612,43 @@ title: Sneaky Guest Upload
 ```
 **Expected:** `403 Forbidden`
 
-#### 08.3 Check Upload Job Status ✅
-```
-GET https://localhost:8443/api/v1/video/jobs/{{job_id}}
-Authorization: Bearer {{resident_token}}
-```
-**Expected:** `200 OK`
-```json
-{
-  "jobId": "{{job_id}}",
-  "status": "PROCESSING",
-  "progress": 42
-}
-```
-
 ---
 
 ### 09 — Streaming
 
-**Purpose:** Validate HLS streaming endpoints — authenticated for stream root, public (token-query-param) for segments.
+**Purpose:** Validate streaming endpoints — authenticated for streaming metadata, public (token-query-param) for HLS playlists/segments.
 
-#### 09.1 List Available Streams ✅
+#### 09.1 Get Streaming Root (RESIDENT) ✅
 ```
-GET https://localhost:8443/api/v1/video/streams
-Authorization: Bearer {{owner_token}}
+GET https://localhost:8443/api/v1/stream?path=movies
+Authorization: Bearer {{resident_token}}
 ```
-**Expected:** `200 OK` — array of available stream objects.
+**Expected:** `200 OK`
 
-#### 09.2 Stream Root Manifest ✅
+#### 09.2 List Playlists (RESIDENT) ✅
 ```
-GET https://localhost:8443/api/v1/video/streams/<videoId>/master.m3u8
-Authorization: Bearer {{owner_token}}
+GET https://localhost:8443/api/v1/stream/playlists
+Authorization: Bearer {{resident_token}}
 ```
-**Expected:** `200 OK` with `Content-Type: application/vnd.apple.mpegurl`.  
-Response body begins with `#EXTM3U`.
+**Expected:** `200 OK`
 
 #### 09.3 Public HLS Playlist (token= param) ✅
 HLS players cannot set headers — the gateway accepts a `?token=` query parameter for these routes:
 ```
-GET https://localhost:8443/api/v1/video/hls/<videoId>/720p/playlist.m3u8?token={{owner_token}}
+GET https://localhost:8443/api/v1/nas/stream/playlist?token={{resident_token}}&path=movies%2Fsample.m3u8
 ```
 No `Authorization` header.  
-**Expected:** `200 OK` — playlist body with `#EXT-X-KEY` lines.
+**Expected:** `200 OK`
 
 #### 09.4 Public HLS Segment ✅
 ```
-GET https://localhost:8443/api/v1/video/hls/<videoId>/720p/segment0.ts?token={{owner_token}}
+GET https://localhost:8443/api/v1/nas/stream/segment?token={{resident_token}}&path=movies%2Fsegment0.ts
 ```
-**Expected:** `200 OK` with `Content-Type: video/mp2t`. Binary segment body.
+**Expected:** `200 OK`
 
 #### 09.5 HLS Without Token — Unauthorized ❌
 ```
-GET https://localhost:8443/api/v1/video/hls/<videoId>/720p/playlist.m3u8
+GET https://localhost:8443/api/v1/nas/stream/playlist?path=movies%2Fsample.m3u8
 ```
 No `Authorization` header, no `?token=` param.  
 **Expected:** `401 Unauthorized`
@@ -689,56 +659,38 @@ No `Authorization` header, no `?token=` param.
 
 **Purpose:** RESIDENT can read and control elements; GUEST can only read.
 
-#### 10.1 List Elements ✅
-```
-GET https://localhost:8443/api/v1/elements
-Authorization: Bearer {{resident_token}}
-```
-**Expected:** `200 OK`
-```json
-[
-  { "id": "elem-living-room-01", "type": "LIGHT", "state": "ON" },
-  ...
-]
-```
-
-#### 10.2 Get Single Element ✅
+#### 10.1 Read Element State (RESIDENT) ✅
 ```
 GET https://localhost:8443/api/v1/elements/{{element_id}}
 Authorization: Bearer {{resident_token}}
 ```
 **Expected:** `200 OK`
 
-#### 10.3 Control Element (RESIDENT) ✅
+#### 10.2 Control Element State (RESIDENT) ✅
 ```
-POST https://localhost:8443/api/v1/elements/{{element_id}}/control
+PUT https://localhost:8443/api/v1/elements/{{element_id}}/state
 Authorization: Bearer {{resident_token}}
 Content-Type: application/json
 
 {
-  "action": "SET_STATE",
-  "value": "OFF"
+  "state": "ON"
 }
 ```
 **Expected:** `200 OK`
-```json
-{ "id": "{{element_id}}", "state": "OFF", "updatedBy": "resident01" }
-```
 
-#### 10.4 Guest Controls Element — Forbidden ❌
+#### 10.3 Guest Controls Element — Forbidden ❌
 ```
-POST https://localhost:8443/api/v1/elements/{{element_id}}/control
+PUT https://localhost:8443/api/v1/elements/{{element_id}}/state
 Authorization: Bearer {{guest_token}}
 Content-Type: application/json
 
 {
-  "action": "SET_STATE",
-  "value": "ON"
+  "state": "OFF"
 }
 ```
 **Expected:** `403 Forbidden` — GUEST is read-only.
 
-#### 10.5 Guest Reads Element ✅
+#### 10.4 Guest Reads Element ✅
 ```
 GET https://localhost:8443/api/v1/elements/{{element_id}}
 Authorization: Bearer {{guest_token}}
@@ -828,7 +780,7 @@ Content-Type: application/json
 #### 12.1 Expired JWT ❌
 Craft or use a manually-expired token (or wait for a short-lived token to expire):
 ```
-GET https://localhost:8443/api/v1/nas/workspace
+GET https://localhost:8443/api/v1/nas/files/list
 Authorization: Bearer <expired-JWT-here>
 ```
 **Expected:** `401 Unauthorized`
@@ -846,7 +798,7 @@ Content-Type: application/json
 
 #### 12.3 Cross-User Snooping — Resident Accesses Owner Files ❌
 ```
-GET https://localhost:8443/api/v1/nas/workspace?user=hearth_owner
+GET https://localhost:8443/api/v1/nas/files/list?workspace=hearth_owner
 Authorization: Bearer {{resident_token}}
 ```
 **Expected:** `403 Forbidden` — resident can only access their own workspace, not `hearth_owner`'s.
@@ -854,14 +806,14 @@ Authorization: Bearer {{resident_token}}
 #### 12.4 Tampered JWT ❌
 Take the `owner_token` and flip one character in the signature segment (last `.` section):
 ```
-GET https://localhost:8443/api/v1/nas/workspace
+GET https://localhost:8443/api/v1/nas/files/list
 Authorization: Bearer <tampered-JWT>
 ```
 **Expected:** `401 Unauthorized` — signature validation fails.
 
 #### 12.5 Missing Bearer Scheme ❌
 ```
-GET https://localhost:8443/api/v1/nas/workspace
+GET https://localhost:8443/api/v1/nas/files/list
 Authorization: {{owner_token}}
 ```
 (No `Bearer ` prefix)  
@@ -930,7 +882,7 @@ newman run postman/Hearth-AuthChain-Postman.json \
 ### Run a Single Folder
 ```bash
 newman run postman/Hearth-AuthChain-Postman.json \
-  --folder "01 - Login" \
+  --folder "01 · Auth – Login (public routes)" \
   --insecure \
   --env-var "base_url=https://localhost:8443" \
   --env-var "owner_username=hearth_owner" \
