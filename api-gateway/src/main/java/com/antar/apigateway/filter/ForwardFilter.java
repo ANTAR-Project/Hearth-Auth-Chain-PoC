@@ -8,6 +8,8 @@ import com.antar.apigateway.gateway.RouteMeta;
 import com.antar.hearth.common.BindCalculator;
 import com.antar.hearth.common.Hearth;
 import com.antar.hearth.common.Intent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
@@ -30,6 +32,8 @@ import java.util.UUID;
  */
 @Component
 public class ForwardFilter implements GlobalFilter, Ordered {
+
+    private static final Logger log = LoggerFactory.getLogger(ForwardFilter.class);
 
     private final ContextTokenMinter minter;
     private final PolicyDecider policyDecider;
@@ -77,7 +81,7 @@ public class ForwardFilter implements GlobalFilter, Ordered {
         if (meta.skipPolicy()) {
             decision = new Intent.Decision("ALLOW", "ANY");
         } else {
-            decision = policyDecider.decide(meta, subject, ex.getRequest());
+            decision = policyDecider.decide(meta, subject, resId, ex.getRequest());
         }
 
         String intentId = UUID.randomUUID().toString();
@@ -121,6 +125,21 @@ public class ForwardFilter implements GlobalFilter, Ordered {
 
         // Mint Context Token
         String contextToken = minter.mint(intent, meta.audience(), bind);
+
+        log.info("================================================================================");
+        log.info("[CONTEXT_TOKEN_GENERATED] Target Service: [{}]", meta.audience());
+        log.info("  Request : {} {}", ex.getRequest().getMethod().name(), ex.getRequest().getPath().value());
+        log.info("  Subject : {} (Role: {}, SID: {})", subject.username(), subject.role(), subject.sessionId());
+        log.info("  Intent  : {} (Action: {})", intent.name(), intent.action());
+        log.info("  Token   : {}", contextToken);
+        log.info("================================================================================");
+
+        // Attach context token and target service to response headers for testing / debugging
+        ex.getResponse().beforeCommit(() -> {
+            ex.getResponse().getHeaders().set("X-Hearth-Context", contextToken);
+            ex.getResponse().getHeaders().set("X-Hearth-Target-Service", meta.audience());
+            return Mono.empty();
+        });
 
         // Mutate outgoing request: strip client Bearer token, attach context token and intent ID
         ServerHttpRequest out = ex.getRequest().mutate()

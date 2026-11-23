@@ -4,6 +4,8 @@ import com.antar.hearth.common.BindCalculator;
 import com.antar.hearth.common.Hearth;
 import com.antar.hearth.common.JwtVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,6 +19,7 @@ import java.security.MessageDigest;
 
 @Component
 public class ContextTokenFilter extends OncePerRequestFilter {
+    private static final Logger log = LoggerFactory.getLogger(ContextTokenFilter.class);
     private final JwtVerifier contextVerifier;
 
     public ContextTokenFilter(JwtVerifier contextTokenVerifier) {
@@ -65,6 +68,11 @@ public class ContextTokenFilter extends OncePerRequestFilter {
             }
 
             req.setAttribute(HearthPrincipal.ATTR, HearthPrincipal.fromContextToken(claims));
+            log.info("[CONTEXT_TOKEN_ACCEPTED] Service [nas-orchestrator] verified token: user={} role={} intent={} action={}",
+                claims.getStringClaim("username"),
+                claims.getStringClaim("role"),
+                claims.getStringClaim("name"),
+                claims.getStringClaim("action"));
             chain.doFilter(req, res);
         } catch (JwtVerifier.Rejected e) {
             write(res, 401, "AUTH_INVALID");

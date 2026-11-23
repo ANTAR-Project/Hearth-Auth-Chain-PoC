@@ -848,6 +848,39 @@ Authorization: Bearer {{owner_token}}
 
 ---
 
+## 6.1 Context Token Logging & Observability
+
+For every authorized request passing through the Gateway (PEP #2), a short-lived **Context Token** (`hearth-ctx+jwt`) is minted and forwarded to the downstream microservice.
+
+- **Gateway Logs (`docker compose logs -f api-gateway`)**:
+  ```log
+  ================================================================================
+  [CONTEXT_TOKEN_GENERATED] Target Service: [nas-orchestrator]
+    Request : GET /api/v1/nas/files/list
+    Subject : resident01 (Role: RESIDENT, SID: ...)
+    Intent  : nas.workspace.list (Action: READ)
+    Token   : eyJhbGciOiJFUzI1NiIsImtpZCI6ImdhdGV3YXktc2lnLXYxIiwidHlwIjoiaGVhcnRoLWN0eCtqd3QifQ...
+  ================================================================================
+  ```
+- **Downstream Logs (`docker compose logs -f nas-orchestrator element-registry video-service streaming-service`)**:
+  ```log
+  [CONTEXT_TOKEN_ACCEPTED] Service [nas-orchestrator] verified token: user=resident01 role=RESIDENT intent=nas.workspace.list action=READ
+  ```
+- **Policy-Registry Logs (`docker compose logs -f policy-registry`)**:
+  ```log
+  DecideRequest received: domain='NAS', intent/rule='nas.workspace.list', action='READ', subject='resident01' (role='RESIDENT'), resource='WORKSPACE:resident01' (qualifier=''), namespace='OWN'
+  DecideResponse sent: effect='ALLOW', scope='OWN', reason='RULE:NAS.WORKSPACE.OWN.READ'
+  ```
+- **Postman & Newman Console**:
+  The collection includes a top-level test event that captures `X-Hearth-Context` and `X-Hearth-Target-Service` headers, logging each minted token and intended service directly to the Postman/Newman console:
+  ```log
+  [CONTEXT TOKEN] Target Service: [nas-orchestrator]
+  [CONTEXT TOKEN] Request: GET /api/v1/nas/files/list
+  [CONTEXT TOKEN] Token: eyJhbGciOiJFUzI1NiIsImtpZCI6ImdhdGV3YXktc2lnLXYxIiwidHlwIjoiaGVhcnRoLWN0eCtqd3QifQ...
+  ```
+
+---
+
 ## 7. Newman CLI
 
 Run the entire collection headlessly (CI/CD-friendly):

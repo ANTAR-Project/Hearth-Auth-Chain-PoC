@@ -2556,5 +2556,24 @@
         }
       ]
     }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const ctxToken = pm.response.headers.get(\"X-Hearth-Context\");",
+          "const targetSvc = pm.response.headers.get(\"X-Hearth-Target-Service\");",
+          "if (ctxToken) {",
+          "    console.log(\"================================================================\");",
+          "    console.log(`[CONTEXT TOKEN] Target Service: [${targetSvc}]`);",
+          "    console.log(`[CONTEXT TOKEN] Request: ${pm.request.method} ${pm.request.url.getPath()}`);",
+          "    console.log(`[CONTEXT TOKEN] Token: ${ctxToken}`);",
+          "    console.log(\"================================================================\");",
+          "}"
+        ]
+      }
+    }
   ]
 }

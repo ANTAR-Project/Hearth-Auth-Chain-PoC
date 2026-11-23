@@ -56,12 +56,14 @@ VALUES ('nas.shared.read', 'NAS', 'RESIDENT', 'READ', 'SHARED', NULL, 'SHARED', 
 -- ── Seed: RESIDENT – media and element (ANY scope) ─────────────────────────
 INSERT INTO policy_rules (rule_name, domain, role, action, resource_type, scope, effect)
 VALUES ('nas.media.stream', 'NAS', 'RESIDENT', 'STREAM', 'MEDIA', 'ANY', 'ALLOW'),
+       ('element.device.read', 'ELEMENT', 'RESIDENT', 'READ', 'ELEMENT', 'ANY', 'ALLOW'),
        ('element.device.control', 'ELEMENT', 'RESIDENT', 'CONTROL', 'ELEMENT', 'ANY', 'ALLOW'),
        ('element.camera.stream', 'ELEMENT', 'RESIDENT', 'STREAM', 'ELEMENT', 'ANY', 'ALLOW');
 
--- ── Seed: GUEST – shared read only ────────────────────────────────────────
+-- ── Seed: GUEST – shared read only & element read ──────────────────────────
 INSERT INTO policy_rules (rule_name, domain, role, action, resource_type, resource_qualifier, scope, effect)
-VALUES ('nas.shared.guest.read', 'NAS', 'GUEST', 'READ', 'SHARED', NULL, 'SHARED', 'ALLOW');
+VALUES ('nas.shared.guest.read', 'NAS', 'GUEST', 'READ', 'SHARED', NULL, 'SHARED', 'ALLOW'),
+       ('element.device.read', 'ELEMENT', 'GUEST', 'READ', 'ELEMENT', NULL, 'ANY', 'ALLOW');
 
 -- ── Seed: GUEST – element CAMERA DENY (explicit) ──────────────────────────
 INSERT INTO policy_rules (rule_name, domain, role, action, resource_type, resource_qualifier, scope, effect)

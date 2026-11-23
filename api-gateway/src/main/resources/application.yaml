@@ -473,5 +473,5 @@ hearth:
     current-kid: ${GATEWAY_CURRENT_KID}
   policy:
     endpoints:
-      NAS: policy-registry:9100
-      ELEMENT: policy-registry:9100
+      NAS: policy-registry:9001
+      ELEMENT: policy-registry:9001
