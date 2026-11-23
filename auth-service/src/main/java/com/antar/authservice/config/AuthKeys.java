@@ -90,9 +90,7 @@ public class AuthKeys {
     }
 
     public ECKey getKey(String kid) {
-        if (kid != null && keyMap.containsKey(kid)) {
-            return keyMap.get(kid);
-        }
-        return currentKey;
+        if (kid == null) return null;
+        return keyMap.get(kid); // null when kid is unknown — callers must treat null as reject
     }
 }
