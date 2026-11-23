@@ -169,7 +169,7 @@ Content-Type: application/json
 {
   "accessToken": "<JWT>",
   "refreshToken": "<opaque-43-char-string>",
-  "expiresIn": 900
+  "expiresIn": 86400
 }
 ```
 **Post-response script saves:**

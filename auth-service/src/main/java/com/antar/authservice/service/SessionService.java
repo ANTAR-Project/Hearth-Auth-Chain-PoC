@@ -49,7 +49,7 @@ public class SessionService {
         s.setExpiresAt(Instant.now().plus(Duration.ofDays(7)));
         sessions.save(s);
 
-        return new TokenPair(issuer.issue(u, sid, List.of("pwd")), rawRefresh, 900);
+        return new TokenPair(issuer.issue(u, sid, List.of("pwd")), rawRefresh, AccessTokenIssuer.ACCESS_TOKEN_VALIDITY_SECONDS);
     }
 
     @Transactional
@@ -75,7 +75,7 @@ public class SessionService {
             s.setRefreshHash(sha256b64(next));
             s.setLastUsedAt(Instant.now());
             sessions.save(s);
-            return new TokenPair(issuer.issue(s.getUser(), sid, List.of(s.getAmr())), next, 900);
+            return new TokenPair(issuer.issue(s.getUser(), sid, List.of(s.getAmr())), next, AccessTokenIssuer.ACCESS_TOKEN_VALIDITY_SECONDS);
         }
 
         if (h.equals(s.getPrevRefreshHash())) {

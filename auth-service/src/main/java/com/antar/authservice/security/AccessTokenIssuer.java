@@ -6,6 +6,7 @@ import com.antar.authservice.model.User;
 import com.antar.hearth.common.Hearth;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -13,6 +14,8 @@ import java.util.UUID;
 
 @Component
 public class AccessTokenIssuer {
+    public static final long ACCESS_TOKEN_VALIDITY_SECONDS = 86400L; // 24 hours
+
     private final AuthKeys keys;
     public AccessTokenIssuer(AuthKeys keys) { this.keys = keys; }
     public String issue(User u, UUID sessionId, List<String> amr) {
@@ -25,7 +28,7 @@ public class AccessTokenIssuer {
                 .claim("username", u.getUsername()).claim("role", u.getRole().name())
                 .claim("sid", sessionId.toString()).claim("amr", amr)
                 .issueTime(Date.from(now))
-                .expirationTime(Date.from(now.plusSeconds(900)))
+                .expirationTime(Date.from(now.plus(Duration.ofHours(24))))
                 .jwtID(UUID.randomUUID().toString());
 
             if (u.isMustChangePassword()) c.claim("scope", "pwd-change");
