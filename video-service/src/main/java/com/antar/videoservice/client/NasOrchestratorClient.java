@@ -59,12 +59,14 @@ public class NasOrchestratorClient {
                 public void onError(Throwable t) {
                     log.error("gRPC upload stream error for destination {}: {}", destinationPath, t.getMessage());
                     error.set(t);
+                    readySignal.offer(Boolean.FALSE);
                     latch.countDown();
                 }
 
                 @Override
                 public void onCompleted() {
                     log.info("gRPC upload stream completed by server for destination: {}", destinationPath);
+                    readySignal.offer(Boolean.TRUE);
                     latch.countDown();
                 }
             }

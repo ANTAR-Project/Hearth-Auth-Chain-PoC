@@ -27,9 +27,9 @@ public class AuthClient {
                     .setToken(token)
                     .build()
             );
-            logger.info("Validate token response: {}", response);
+            logger.info("Validate token response: valid={}, username={}", response.getValid(), response.getUsername());
 
-            return new ValidationOutcome(true, true, response.getUsername());
+            return new ValidationOutcome(response.getValid(), true, response.getUsername());
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode() == Status.Code.UNAUTHENTICATED) {
                 return new ValidationOutcome(false, true, null);

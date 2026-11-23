@@ -1,7 +1,6 @@
 package com.antar.encodingservice.security;
 
-import com.antar.encodingservice.dto.TokenRequest;
-import com.antar.encodingservice.dto.TokenResponse;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import com.antar.encodingservice.dto.*;
 
 @Component
 public class ServiceAuthTokenProvider {
@@ -34,7 +34,7 @@ public class ServiceAuthTokenProvider {
         try {
             fetchAndCacheToken();
         } catch (Exception e) {
-            log.warn("Could not obtain auth token at startup for '{}' — will retry lazily on first NAS call: {}", serviceUsername, e.getMessage());
+            log.warn("Could not obtain auth token at startup for '{}' — will retry lazily: {}", serviceUsername, e.getMessage());
         }
     }
 
@@ -50,15 +50,25 @@ public class ServiceAuthTokenProvider {
             return;
         }
 
-        TokenResponse response = authServiceRestClient.post()
-            .uri("/api/v1/auth-service/login")
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new TokenRequest(serviceUsername, serviceUsernamePassword))
-            .retrieve()
-            .body(TokenResponse.class);
+        try {
+            JsonNode node = authServiceRestClient.post()
+                .uri("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new TokenRequest(serviceUsername, serviceUsernamePassword))
+                .retrieve()
+                .body(JsonNode.class);
 
-        this.token = response != null ? response.token() : null;
-        log.info("Registered service identity '{}' with auth-service", serviceUsername);
+            if (node != null) {
+                if (node.has("accessToken")) {
+                    this.token = node.get("accessToken").asText();
+                } else if (node.has("token")) {
+                    this.token = node.get("token").asText();
+                }
+            }
+            log.info("Registered service identity '{}' with auth-service", serviceUsername);
+        } catch (Exception e) {
+            log.warn("Could not fetch token via login endpoint: {}", e.getMessage());
+        }
     }
 }
 

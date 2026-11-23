@@ -95,7 +95,21 @@ public class ServiceTokenRefresher {
         String token = currentToken.get();
 
         if (token == null) {
-            throw new IllegalStateException("No service token available yet");
+            long deadline = System.currentTimeMillis() + 15_000;
+            while (token == null && System.currentTimeMillis() < deadline) {
+                refresh();
+                token = currentToken.get();
+                if (token == null) {
+                    try { Thread.sleep(1_000); } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (token == null) {
+            throw new IllegalStateException("No service token available — auth-service may be unreachable");
         }
 
         return token;

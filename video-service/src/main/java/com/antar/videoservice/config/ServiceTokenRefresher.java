@@ -94,8 +94,25 @@ public class ServiceTokenRefresher {
     public String get() {
         String token = currentToken.get();
 
+        // Token may be null if auth-service was not ready at startup.
+        // Block-retry for up to 15 s so the first real request doesn't fail
+        // while the @Scheduled refresh catches up.
         if (token == null) {
-            throw new IllegalStateException("No service token available yet");
+            long deadline = System.currentTimeMillis() + 15_000;
+            while (token == null && System.currentTimeMillis() < deadline) {
+                refresh();                      // force immediate retry
+                token = currentToken.get();
+                if (token == null) {
+                    try { Thread.sleep(1_000); } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (token == null) {
+            throw new IllegalStateException("No service token available — auth-service may be unreachable");
         }
 
         return token;

@@ -44,6 +44,8 @@ public class ContextTokenFilter extends OncePerRequestFilter {
             return;
         }
 
+        // JWT verification only — keep chain.doFilter() outside to avoid
+        // masking downstream exceptions (gRPC errors, IOExceptions, etc.) as 401.
         try {
             JWTClaimsSet claims = contextVerifier.verify(ctx);
 
@@ -69,14 +71,20 @@ public class ContextTokenFilter extends OncePerRequestFilter {
                 claims.getStringClaim("role"),
                 claims.getStringClaim("name"),
                 claims.getStringClaim("action"));
-            chain.doFilter(req, res);
         } catch (JwtVerifier.Rejected e) {
             write(res, 401, "AUTH_INVALID");
+            return;
         } catch (JwtVerifier.Unavailable e) {
             write(res, 503, "AUTH_UNAVAILABLE");
+            return;
         } catch (Exception e) {
+            log.error("[CONTEXT_TOKEN_ERROR] Unexpected error verifying context token: {}", e.getMessage(), e);
             write(res, 401, "AUTH_INVALID");
+            return;
         }
+
+        // Principal is set — continue chain; let downstream exceptions propagate normally
+        chain.doFilter(req, res);
     }
 
     private void write(HttpServletResponse r, int status, String code) throws IOException {
