@@ -6,6 +6,8 @@ import com.antar.apigateway.gateway.RouteMeta;
 import com.antar.hearth.common.Intent;
 import com.antar.hearth.common.JwtVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -17,6 +19,7 @@ import reactor.core.publisher.Mono;
 
 @Component
 public class AuthenticationFilter implements GlobalFilter, Ordered {
+    private static final Logger log = LoggerFactory.getLogger(AuthenticationFilter.class);
     public static final String SUBJECT_ATTR = "hearth.subject";
 
     private final JwtVerifier accessVerifier;
@@ -50,11 +53,15 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
         return Mono.fromCallable(() -> accessVerifier.verify(auth.substring(7)))
             .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
-            .onErrorResume(JwtVerifier.Rejected.class, e ->
-                audit.authRejected(ex, "AUTH_INVALID")
-                    .then(Mono.error(new RejectRequest(401, "AUTH_INVALID"))))
-            .onErrorResume(JwtVerifier.Unavailable.class, e ->
-                Mono.error(new RejectRequest(503, "AUTH_UNAVAILABLE")))
+            .onErrorResume(JwtVerifier.Rejected.class, e -> {
+                log.warn("JWT verification rejected: reason='{}', path='{}'", e.getMessage(), ex.getRequest().getPath().value());
+                return audit.authRejected(ex, "AUTH_INVALID")
+                    .then(Mono.error(new RejectRequest(401, "AUTH_INVALID")));
+            })
+            .onErrorResume(JwtVerifier.Unavailable.class, e -> {
+                log.warn("JWT verification unavailable (JWKS error): {}", e.getMessage());
+                return Mono.error(new RejectRequest(503, "AUTH_UNAVAILABLE"));
+            })
             .flatMap(claims -> checkRevoked(ex, chain, claims))
             .onErrorResume(RejectRequest.class, e ->
                 Problems.write(ex, e.status(), e.code()));

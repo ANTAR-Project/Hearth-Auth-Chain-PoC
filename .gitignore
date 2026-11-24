@@ -29,3 +29,6 @@ temp/
 
 *.env
 .github
+
+secrets/
+*.pem
