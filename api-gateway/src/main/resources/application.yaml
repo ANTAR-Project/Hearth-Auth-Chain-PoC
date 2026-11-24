@@ -189,7 +189,7 @@ spring:
                   action: READ
                   domain: NAS
                   audience: nas-orchestrator
-                  resourceType: WORKSPACE
+                  resourceType: SHARED
                   resourceId: "shared"
                   namespace: SHARED
 
@@ -204,7 +204,7 @@ spring:
                   action: READ
                   domain: NAS
                   audience: nas-orchestrator
-                  resourceType: WORKSPACE
+                  resourceType: SHARED
                   resourceId: "shared"
                   namespace: SHARED
 
@@ -219,7 +219,7 @@ spring:
                   action: READ
                   domain: NAS
                   audience: nas-orchestrator
-                  resourceType: WORKSPACE
+                  resourceType: SHARED
                   resourceId: "shared"
                   namespace: SHARED
 
@@ -234,7 +234,7 @@ spring:
                   action: UPDATE
                   domain: NAS
                   audience: nas-orchestrator
-                  resourceType: WORKSPACE
+                  resourceType: SHARED
                   resourceId: "shared"
                   namespace: SHARED
 
@@ -249,7 +249,7 @@ spring:
                   action: UPDATE
                   domain: NAS
                   audience: nas-orchestrator
-                  resourceType: WORKSPACE
+                  resourceType: SHARED
                   resourceId: "shared"
                   namespace: SHARED
 
@@ -261,10 +261,10 @@ spring:
               metadata:
                 hearth:
                   intent: nas.shared.update
-                  action: CREATE
+                  action: UPDATE
                   domain: NAS
                   audience: nas-orchestrator
-                  resourceType: WORKSPACE
+                  resourceType: SHARED
                   resourceId: "shared"
                   namespace: SHARED
 
@@ -279,7 +279,7 @@ spring:
                   action: UPDATE
                   domain: NAS
                   audience: nas-orchestrator
-                  resourceType: WORKSPACE
+                  resourceType: SHARED
                   resourceId: "shared"
                   namespace: SHARED
 
@@ -294,7 +294,7 @@ spring:
                   action: DELETE
                   domain: NAS
                   audience: nas-orchestrator
-                  resourceType: WORKSPACE
+                  resourceType: SHARED
                   resourceId: "shared"
                   namespace: SHARED
 
@@ -392,7 +392,7 @@ spring:
                   action: STREAM
                   domain: NAS
                   audience: streaming-service
-                  resourceType: WORKSPACE
+                  resourceType: MEDIA
                   resourceId: "{username}"
                   namespace: OWN
 
@@ -405,7 +405,7 @@ spring:
                   action: STREAM
                   domain: NAS
                   audience: streaming-service
-                  resourceType: WORKSPACE
+                  resourceType: MEDIA
                   resourceId: "{username}"
                   namespace: OWN
 

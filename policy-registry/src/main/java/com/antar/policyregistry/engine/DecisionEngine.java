@@ -30,8 +30,16 @@ public class DecisionEngine {
         String domain = decideRequest.getDomain();
         String role = decideRequest.getSubject().getRole();
         String action = decideRequest.getAction();
-        String resType = decideRequest.getResource().getType();
+        String rawResType = decideRequest.getResource().getType();
         String qualifier = decideRequest.getResource().getQualifier();
+
+        // If accessing shared workspace (namespace SHARED or resource ID "shared"),
+        // the effective resource type in the policy domain is SHARED.
+        final String resType = ("WORKSPACE".equalsIgnoreCase(rawResType)
+                && ("SHARED".equalsIgnoreCase(decideRequest.getNamespace())
+                    || "shared".equalsIgnoreCase(decideRequest.getResource().getId())))
+            ? "SHARED"
+            : rawResType;
 
         List<PolicyRule> matching = snapshot.get()
             .rulesForDomain(domain)
@@ -75,6 +83,8 @@ public class DecisionEngine {
                     .setReasonCode("WORKSPACE_DELETE_OWNER_ONLY")
                     .build();
             } else if (!"OWNER".equalsIgnoreCase(role) && best.getScope() == PolicyScope.OWN
+                    && !"SHARED".equalsIgnoreCase(decideRequest.getNamespace())
+                    && !"shared".equalsIgnoreCase(decideRequest.getResource().getId())
                     && ("OTHER".equalsIgnoreCase(decideRequest.getNamespace())
                         || (decideRequest.getResource().getId() != null && !decideRequest.getResource().getId().isEmpty()
                             && !decideRequest.getResource().getId().equalsIgnoreCase(decideRequest.getSubject().getUsername())))) {
